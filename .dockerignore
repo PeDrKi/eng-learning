@@ -1,0 +1,10 @@
+# Không bao giờ đưa vào image: bí mật, thư viện máy dev, test, tài liệu.
+.env
+.env.*
+!.env.example
+node_modules
+test
+coverage
+docs
+scripts
+*.log
