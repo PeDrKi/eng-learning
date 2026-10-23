@@ -37,7 +37,7 @@ export async function findVisibleWord(db, wordId, ctx) {
 const PROGRESS_COLUMNS = `p.ease_factor, p.stability, p.difficulty, p.interval_days, p.repetitions, p.due_at,
           p.last_reviewed_at, p.ease_factor_rev, p.stability_rev, p.difficulty_rev, p.interval_days_rev,
           p.repetitions_rev, p.due_at_rev, p.last_reviewed_at_rev,
-          p.quiz_correct, p.quiz_wrong, p.lapses`
+          p.quiz_correct, p.quiz_wrong, p.lapses, p.study_count`
 const PROGRESS_JOIN = 'left join word_progress p on p.word_id = w.id and p.user_id = $1'
 
 export function createWordsService({ pool, quotas }) {

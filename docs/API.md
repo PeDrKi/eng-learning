@@ -272,11 +272,13 @@ trình học của chính người gọi**:
   "last_reviewed_at_rev": null,
   "quiz_correct": 0,
   "quiz_wrong": 0,
-  "lapses": 0
+  "lapses": 0,
+  "study_count": 0
 }
 ```
 
-Các field có đuôi `_rev` là lịch ôn chiều Việt → Anh; không đuôi là chiều Anh → Việt.
+Các field có đuôi `_rev` là lịch ôn chiều Việt → Anh; không đuôi là chiều Anh → Việt. `study_count` là số lần học
+từ này (xem bên dưới).
 
 ## Tiến trình học `/progress`
 
@@ -290,7 +292,11 @@ tạo mới.
 
 `progress`: `{ id, word_id, user_id, ease_factor, stability, difficulty, interval_days, repetitions, due_at,
 last_reviewed_at, ease_factor_rev, stability_rev, difficulty_rev, interval_days_rev, repetitions_rev, due_at_rev,
-last_reviewed_at_rev, quiz_correct, quiz_wrong, lapses }`.
+last_reviewed_at_rev, quiz_correct, quiz_wrong, lapses, study_count }`.
+
+`study_count`: số lần học từ này = số lượt ôn đã ghi qua `POST /review-log` (tab Học, Quiz, Chính tả, cả hai chiều).
+Máy chủ tự cộng mỗi khi ghi lượt ôn; **không** ghi được qua `PATCH`. Frontend dùng nó để chia trạng thái: 0 = chưa
+học, 1–19 = đang học, từ 20 = đã học.
 
 Field ghi được: `ease_factor` (1–10), `stability` (0,001–36500 hoặc `null`), `difficulty` (1–10 hoặc `null`),
 `interval_days` (0–36500), `repetitions`, `quiz_correct`, `quiz_wrong`,

@@ -117,6 +117,23 @@ describe('/review-log', () => {
     expect((await log(w.bob, { word_id: id, quality: 2, reviewed_at: 'hôm qua' })).status).toBe(400)
   })
 
+  it('đếm số lần học mỗi từ: mọi nguồn, cả hai chiều; mỗi người đếm riêng; client không sửa được', async () => {
+    const id = w.words.aliceInGroup.id // từ trong nhóm: Bob học lần đầu, chưa có dòng tiến trình
+    const studyCount = async (user) => (await user.get('/words')).body.find((x) => x.id === id).study_count
+    expect(await studyCount(w.bob)).toBeNull() // chưa có dòng tiến trình → các cột tiến trình là null
+
+    await log(w.bob, { word_id: id, quality: 2 })
+    await log(w.bob, { word_id: id, quality: 0, source: 'quiz' })
+    await log(w.bob, { word_id: id, quality: 2, source: 'spelling', direction: 'production' })
+    await log(w.alice, { word_id: id, quality: 2 })
+    expect(await studyCount(w.bob)).toBe(3)
+    expect(await studyCount(w.alice)).toBe(1)
+
+    await w.bob.patch(`/progress/${id}`, { study_count: 999 })
+    await w.bob.patch(`/progress/${id}`, { repetitions: 1 })
+    expect(await studyCount(w.bob)).toBe(3)
+  })
+
   it('ghi nguồn của lượt ôn (tab Học / Quiz / Chính tả); mặc định là tab Học', async () => {
     const id = w.words.bobPersonal.id
     expect((await log(w.bob, { word_id: id, quality: 2 })).body.source).toBe('study')
