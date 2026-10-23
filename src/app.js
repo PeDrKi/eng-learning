@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
+import { clientIpFromHeader } from './middleware/clientIp.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import { createAuthRouter } from './modules/auth/auth.routes.js'
 import { createAuthService } from './modules/auth/auth.service.js'
@@ -16,6 +17,8 @@ import { createGroupsRouter } from './modules/groups/groups.routes.js'
 import { createGroupsService } from './modules/groups/groups.service.js'
 import { createPhrasesRouter } from './modules/phrases/phrases.routes.js'
 import { createPhrasesService } from './modules/phrases/phrases.service.js'
+import { createReadingsRouter } from './modules/readings/readings.routes.js'
+import { createReadingsService } from './modules/readings/readings.service.js'
 import { createProgressRouter } from './modules/progress/progress.routes.js'
 import { createProgressService } from './modules/progress/progress.service.js'
 import { createReviewLogRouter } from './modules/reviewLog/reviewLog.routes.js'
@@ -37,6 +40,7 @@ import { requireAuth } from './middleware/requireAuth.js'
 export function createApp({ config, pool, mailer, rateLimitStore, log = console.log }) {
   const app = express()
   app.set('trust proxy', config.trustProxy)
+  if (config.clientIpHeader) app.use(clientIpFromHeader(config.clientIpHeader))
   // App không giữ trạng thái nào trong bộ nhớ giữa các request (phiên nằm ở JWT + bảng
   // refresh_tokens) → chạy bao nhiêu instance sau load balancer cũng được. Xem SCALING.md.
 
@@ -95,6 +99,11 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
     '/phrases',
     auth,
     createPhrasesRouter({ phrasesService: createPhrasesService({ pool, quotas: config.quotas }) }),
+  )
+  app.use(
+    '/readings',
+    auth,
+    createReadingsRouter({ readingsService: createReadingsService({ pool, quotas: config.quotas }) }),
   )
 
   // Quản trị tài khoản — chỉ super admin.

@@ -72,6 +72,14 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...base, COOKIE_SAMESITE: 'none' }).cookie.secure).toBe(true)
   })
 
+  it('CLIENT_IP_HEADER: mặc định cf-connecting-ip khi chạy trên Render, nơi khác tắt; đặt rỗng để tắt', () => {
+    expect(loadConfig({ ...base }).clientIpHeader).toBe('')
+    expect(loadConfig({ ...base, RENDER: 'true' }).clientIpHeader).toBe('cf-connecting-ip')
+    expect(loadConfig({ ...base, RENDER: 'true', CLIENT_IP_HEADER: '' }).clientIpHeader).toBe('')
+    expect(loadConfig({ ...base, CLIENT_IP_HEADER: ' True-Client-IP ' }).clientIpHeader).toBe('true-client-ip')
+    expect(() => loadConfig({ ...base, CLIENT_IP_HEADER: 'a b' })).toThrow(/CLIENT_IP_HEADER/)
+  })
+
   it('CORS_ORIGINS nhận nhiều domain, bỏ dấu / thừa ở cuối', () => {
     const c = loadConfig({ ...base, CORS_ORIGINS: 'https://a.com/, https://b.com' })
     expect(c.cors.origins).toEqual(['https://a.com', 'https://b.com'])

@@ -64,15 +64,27 @@ const schema = z.object({
   COOKIE_SECURE: bool.optional(),
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
 
-  // Số tầng proxy đứng trước app (Render = 1) — để req.ip là IP thật của người dùng,
-  // cần cho rate limit.
+  // Số tầng proxy đứng trước app (Fly = 1) — để req.ip là IP thật của người dùng,
+  // cần cho rate limit. Không dùng trên Render: xem CLIENT_IP_HEADER.
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
+  // Header chứa IP thật do proxy ngoài cùng gắn mà người dùng không giả được, VD Cloudflare
+  // `cf-connecting-ip`. Có header này thì req.ip lấy từ đây thay vì đếm tầng X-Forwarded-For.
+  // Bỏ trống: chạy trên Render (Render tự đặt biến RENDER) thì mặc định `cf-connecting-ip`, nơi
+  // khác thì không dùng. Đặt chuỗi rỗng để tắt hẳn.
+  CLIENT_IP_HEADER: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9-]*$/, 'chỉ gồm chữ, số, dấu gạch ngang')
+    .optional(),
+  RENDER: z.string().optional(),
   RATE_LIMIT_ENABLED: bool.default(true),
 
   // Hạn mức dữ liệu mỗi tài khoản (chống nhồi dữ liệu làm đầy DB) — xem lib/quotas.js.
   QUOTA_WORDS: z.coerce.number().int().positive().default(20_000),
   QUOTA_DECKS: z.coerce.number().int().positive().default(500),
   QUOTA_PHRASES: z.coerce.number().int().positive().default(5_000),
+  QUOTA_READINGS: z.coerce.number().int().positive().default(500),
   QUOTA_GROUPS: z.coerce.number().int().positive().default(50), // số nhóm 1 người tham gia
 
   // Thông báo đẩy "nhắc học" (Web Push). Tạo cặp khoá VAPID một lần bằng:
@@ -155,8 +167,15 @@ export function loadConfig(env = process.env) {
       sameSite: e.COOKIE_SAMESITE,
     },
     trustProxy: e.TRUST_PROXY,
+    clientIpHeader: e.CLIENT_IP_HEADER ?? (e.RENDER ? 'cf-connecting-ip' : ''),
     rateLimitEnabled: e.RATE_LIMIT_ENABLED,
-    quotas: { words: e.QUOTA_WORDS, decks: e.QUOTA_DECKS, phrases: e.QUOTA_PHRASES, groups: e.QUOTA_GROUPS },
+    quotas: {
+      words: e.QUOTA_WORDS,
+      decks: e.QUOTA_DECKS,
+      phrases: e.QUOTA_PHRASES,
+      readings: e.QUOTA_READINGS,
+      groups: e.QUOTA_GROUPS,
+    },
     mail: {
       driver: e.MAIL_DRIVER,
       smtpUrl: e.SMTP_URL,

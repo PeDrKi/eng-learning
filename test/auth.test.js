@@ -435,6 +435,39 @@ describe('Giới hạn tần suất (rate limit)', () => {
     }
   })
 
+  it('sau Render (CLIENT_IP_HEADER): đếm theo IP thật trong header, giả X-Forwarded-For không né được', async () => {
+    const limitedApp = createApp({
+      config: testConfig({ RATE_LIMIT_ENABLED: 'true', CLIENT_IP_HEADER: 'cf-connecting-ip' }),
+      pool,
+      mailer,
+    })
+    // Như trên Render: phần đầu X-Forwarded-For do người dùng tự khai, tầng cuối luôn là cùng 1
+    // proxy nội bộ — đếm theo tầng nào trong đó cũng sai.
+    const viaRender = (realIp, fakeIp) =>
+      request(limitedApp)
+        .post('/auth/login')
+        .set('X-Forwarded-For', `${fakeIp}, ${realIp}, 172.71.0.1, 10.0.0.1`)
+        .set('CF-Connecting-IP', realIp)
+        .send({})
+    for (let i = 0; i < 10; i++) expect((await viaRender('203.0.113.7', `198.51.100.${i}`)).status).toBe(400)
+    expect((await viaRender('203.0.113.7', '198.51.100.99')).status).toBe(429)
+    // Người khác đi qua cùng proxy không bị chặn lây.
+    expect((await viaRender('2001:db8::1', '198.51.100.1')).status).toBe(400)
+  })
+
+  it('CLIENT_IP_HEADER thiếu hoặc không phải IP → quay về X-Forwarded-For theo TRUST_PROXY', async () => {
+    const limitedApp = createApp({
+      config: testConfig({ RATE_LIMIT_ENABLED: 'true', CLIENT_IP_HEADER: 'cf-connecting-ip' }),
+      pool,
+      mailer,
+    })
+    const tryLogin = (i, header) => {
+      const req = fromIp(request(limitedApp).post('/auth/login'), i)
+      return (header ? req.set('CF-Connecting-IP', header) : req).send({})
+    }
+    for (let i = 0; i < 12; i++) expect((await tryLogin(i, i % 2 ? 'khong-phai-ip' : undefined)).status).toBe(400)
+  })
+
   it('đăng ký: tối đa 10 lần / giờ / IP (chặn dò email bằng form đăng ký)', async () => {
     const { register: registerLimiter } = createAuthLimiters(true)
     const mini = express()

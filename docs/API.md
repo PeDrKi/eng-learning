@@ -18,10 +18,11 @@ Dữ liệu mẫu trong tài liệu được chụp từ API chạy thật (12/1
 8. [Cài đặt học `/settings`](#cài-đặt-học-settings)
 9. [Nhắc học `/push`](#nhắc-học-push)
 10. [Câu giao tiếp `/phrases`](#câu-giao-tiếp-phrases)
-11. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
-12. [Quản trị `/admin`](#quản-trị-admin)
-13. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
-14. [Mã lỗi](#mã-lỗi)
+11. [Bài đọc `/readings`](#bài-đọc-readings)
+12. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
+13. [Quản trị `/admin`](#quản-trị-admin)
+14. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
+15. [Mã lỗi](#mã-lỗi)
 
 ## Quy ước chung
 
@@ -78,8 +79,9 @@ nào hợp lệ trả 400 `validation_error` ("Không có gì để cập nhật
 | `verify-email`                                                                      | 10 lần / 15 phút / IP          |
 | `POST /groups/join`                                                                 | 20 lần / 15 phút / IP          |
 
-**Hạn mức dữ liệu mỗi tài khoản** (409 `quota_exceeded`): 20.000 từ, 500 chủ đề, 5.000 câu giao tiếp, 50
-nhóm. Chỉnh bằng biến môi trường `QUOTA_WORDS`, `QUOTA_DECKS`, `QUOTA_PHRASES`, `QUOTA_GROUPS`.
+**Hạn mức dữ liệu mỗi tài khoản** (409 `quota_exceeded`): 20.000 từ, 500 chủ đề, 5.000 câu giao tiếp, 500
+bài đọc, 50 nhóm. Chỉnh bằng biến môi trường `QUOTA_WORDS`, `QUOTA_DECKS`, `QUOTA_PHRASES`, `QUOTA_READINGS`,
+`QUOTA_GROUPS`.
 
 ## Xác thực `/auth`
 
@@ -379,6 +381,24 @@ Sổ tay **cá nhân**: chỉ chủ sở hữu xem, sửa, xoá (kể cả trư�
 sẵn `ease_factor, stability, difficulty, interval_days, repetitions, due_at, last_reviewed_at`, mới nhất trước.
 `PATCH …/progress` trả `{ id, phrase_id, user_id, ease_factor, stability, difficulty, interval_days, repetitions,
 due_at, last_reviewed_at }`. Body vẫn nhận `ease_factor` để tương thích với bản cũ.
+
+## Bài đọc `/readings`
+
+| Method | Đường dẫn       | Body                                   | Thành công      |
+| ------ | --------------- | -------------------------------------- | --------------- |
+| GET    | `/readings`     | —                                      | 200 `[reading]` |
+| POST   | `/readings`     | `{ title?, content?, notes? }`         | 201 `reading`   |
+| PATCH  | `/readings/:id` | các field như POST, đều không bắt buộc | 200 `reading`   |
+| DELETE | `/readings/:id` | —                                      | 204             |
+
+Trang "Đọc & ghi chú": một đoạn văn / bài văn / hội thoại kèm ghi chú người học trích ra. Sổ tay **cá nhân**
+như câu giao tiếp. `title` tối đa 200 ký tự; `content` tối đa 50.000; `notes` tối đa 300 mục, mỗi mục
+`{ id, type, text, meaning?, explanation?, example?, saved_to? }`: `type` là `word`, `grammar` hoặc `phrase`;
+`text` 1–500 ký tự; `meaning` tối đa 1000; `explanation`, `example` tối đa 2000; `saved_to` là
+`{ kind: 'word' | 'phrase', id }` khi ghi chú đã được thêm vào Sổ từ / Câu giao tiếp, hoặc `null`. `PATCH` với
+`notes` thay **cả danh sách**.
+
+`reading`: `{ id, user_id, title, content, notes, created_at, updated_at }`, sửa gần nhất trước.
 
 ## Nhóm học tập `/groups`
 
