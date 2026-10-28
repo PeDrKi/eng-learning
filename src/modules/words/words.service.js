@@ -5,7 +5,7 @@ import { assertWithinQuota } from '../../lib/quotas.js'
 import { decodeCursor, toPage } from '../../lib/pagination.js'
 import { findVisibleDeck } from '../decks/decks.service.js'
 
-const CONTENT_FIELDS = ['word', 'meaning', 'example', 'ipa', 'audio_url', 'tags', 'pos', 'deck_id']
+const CONTENT_FIELDS = ['word', 'meaning', 'meaning_en', 'example', 'ipa', 'audio_url', 'tags', 'pos', 'deck_id']
 
 // Con trỏ trang: vị trí của dòng cuối trang trước theo thứ tự (created_at desc, id asc).
 // `c` là created_at dạng TEXT của Postgres (đủ micro giây — Date của JS chỉ tới mili giây, dùng
@@ -108,10 +108,10 @@ export function createWordsService({ pool, quotas }) {
     await assertWithinQuota(pool, { table: 'words', userId, adding: words.length, max: quotas.words, what: 'từ' })
     try {
       const { rows } = await pool.query(
-        `insert into words (user_id, deck_id, word, meaning, example, ipa, audio_url, tags, pos)
-         select $1, x.deck_id, x.word, x.meaning, x.example, x.ipa, x.audio_url, x.tags, x.pos
+        `insert into words (user_id, deck_id, word, meaning, meaning_en, example, ipa, audio_url, tags, pos)
+         select $1, x.deck_id, x.word, x.meaning, x.meaning_en, x.example, x.ipa, x.audio_url, x.tags, x.pos
          from unnest($2::jsonb[]) with ordinality as t(j, i),
-              jsonb_to_record(t.j) as x(deck_id uuid, word text, meaning text, example text,
+              jsonb_to_record(t.j) as x(deck_id uuid, word text, meaning text, meaning_en text, example text,
                                         ipa text, audio_url text, tags text[], pos text[])
          order by t.i
          returning *`,

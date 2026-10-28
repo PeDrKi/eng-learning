@@ -52,6 +52,8 @@ const fields = {
     .trim()
     .min(1, 'Vui lòng nhập nghĩa.')
     .max(1000, 'Nghĩa tối đa 1000 ký tự.'),
+  // Nghĩa tiếng Anh (định nghĩa Anh–Anh), không bắt buộc — đặt cạnh nghĩa tiếng Việt.
+  meaning_en: text(1000, 'Nghĩa tiếng Anh'),
   example: text(2000, 'Câu ví dụ'),
   ipa: text(200, 'IPA'),
   // Chỉ nhận link http(s) (hoặc để trống): link này được trình duyệt của MỌI thành viên nhóm tải
@@ -68,6 +70,7 @@ const fields = {
 const newWord = z.object({
   word: fields.word,
   meaning: fields.meaning,
+  meaning_en: fields.meaning_en.default(''),
   example: fields.example.default(''),
   ipa: fields.ipa.default(''),
   audio_url: fields.audio_url.default(''),
@@ -88,6 +91,7 @@ export const updateWordSchema = z
   .object({
     word: fields.word.optional(),
     meaning: fields.meaning.optional(),
+    meaning_en: fields.meaning_en.optional(),
     example: fields.example.optional(),
     ipa: fields.ipa.optional(),
     audio_url: fields.audio_url.optional(),

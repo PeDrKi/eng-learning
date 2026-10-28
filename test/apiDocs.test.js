@@ -1,10 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 // Tài liệu docs/API.md phải liệt kê ĐÚNG các endpoint có trong code — thêm route mà quên ghi tài
 // liệu (hoặc xoá route mà tài liệu còn) thì test này đỏ. Đọc mã nguồn tĩnh, không cần database.
-const root = new URL('..', import.meta.url).pathname
+// fileURLToPath thay cho .pathname: trên Windows .pathname ra "/C:/..." nên đọc file hỏng.
+const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (p) => readFileSync(join(root, p), 'utf8')
 
 // Tiền tố gắn router trong app.js: app.use('/words', auth, createWordsRouter(...)).

@@ -224,15 +224,15 @@ xoá chủ đề con nào: chúng về `chapter_id = null`. Số chủ đề m�
 
 ## Từ vựng `/words`
 
-| Method | Đường dẫn     | Body                                                                   | Thành công              |
-| ------ | ------------- | ---------------------------------------------------------------------- | ----------------------- |
-| GET    | `/words`      | query `limit?`, `cursor?`                                              | 200 `[word]` hoặc trang |
-| POST   | `/words`      | `{ word, meaning, example?, ipa?, audio_url?, tags?, pos?, deck_id? }` | 201 `word`              |
-| POST   | `/words/bulk` | `{ words: [ ... ] }`                                                   | 201 `[word]`            |
-| PATCH  | `/words/:id`  | các field như POST, đều không bắt buộc                                 | 200 `word`              |
-| DELETE | `/words/:id`  | —                                                                      | 204                     |
+| Method | Đường dẫn     | Body                                                                                | Thành công              |
+| ------ | ------------- | ----------------------------------------------------------------------------------- | ----------------------- |
+| GET    | `/words`      | query `limit?`, `cursor?`                                                           | 200 `[word]` hoặc trang |
+| POST   | `/words`      | `{ word, meaning, meaning_en?, example?, ipa?, audio_url?, tags?, pos?, deck_id? }` | 201 `word`              |
+| POST   | `/words/bulk` | `{ words: [ ... ] }`                                                                | 201 `[word]`            |
+| PATCH  | `/words/:id`  | các field như POST, đều không bắt buộc                                              | 200 `word`              |
+| DELETE | `/words/:id`  | —                                                                                   | 204                     |
 
-**Ràng buộc.** `word` 1–200 ký tự; `meaning` 1–1000; `example` tối đa 2000; `ipa` tối đa 200; `audio_url` tối
+**Ràng buộc.** `word` 1–200 ký tự; `meaning` (nghĩa tiếng Việt) 1–1000; `meaning_en` (nghĩa tiếng Anh, không bắt buộc) tối đa 1000; `example` tối đa 2000; `ipa` tối đa 200; `audio_url` tối
 đa 2000 và phải bắt đầu bằng `http://` hoặc `https://` (hoặc rỗng); `tags` tối đa 30 nhãn, mỗi nhãn tối đa 50
 ký tự, tự bỏ nhãn trùng (không phân biệt hoa/thường); `pos` (từ loại) là mảng mã trong danh sách `noun`,
 `verb`, `adjective`, `adverb`, `pronoun`, `preposition`, `conjunction`, `determiner`, `article`, `interjection`,
@@ -250,6 +250,7 @@ trình học của chính người gọi**:
   "deck_id": "79049c08-…",
   "word": "luggage",
   "meaning": "hành lý",
+  "meaning_en": "bags and cases that you take with you when you travel",
   "example": "",
   "ipa": "",
   "audio_url": "",

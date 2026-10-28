@@ -129,6 +129,19 @@ describe('POST /words', () => {
     expect((await w.bob.patch(`/words/${ok.body.id}`, { pos: ['verb', 'bad'] })).status).toBe(400)
   })
 
+  it('nghĩa tiếng Anh: không bắt buộc, lưu/sửa được, giới hạn 1000 ký tự', async () => {
+    const plain = await w.bob.post('/words', { word: 'x', meaning: 'y' })
+    expect(plain.body.meaning_en).toBe('')
+    const res = await w.bob.post('/words', { word: 'luggage', meaning: 'hành lý', meaning_en: '  bags for travel ' })
+    expect(res.status).toBe(201)
+    expect(res.body.meaning_en).toBe('bags for travel')
+    const patched = await w.bob.patch(`/words/${res.body.id}`, { meaning_en: 'suitcases and bags' })
+    expect(patched.body).toMatchObject({ meaning: 'hành lý', meaning_en: 'suitcases and bags' })
+    expect((await w.bob.patch(`/words/${res.body.id}`, { meaning_en: 'a'.repeat(1001) })).status).toBe(400)
+    const bulk = await w.bob.post('/words/bulk', { words: [{ word: 'p', meaning: 'q', meaning_en: 'r' }] })
+    expect(bulk.body[0].meaning_en).toBe('r')
+  })
+
   it('DB cũng chặn mã từ loại lạ (phòng khi code bỏ sót kiểm tra)', async () => {
     await expect(
       pool.query(`update words set pos = '{bogus}' where id = $1`, [w.words.bobPersonal.id]),
