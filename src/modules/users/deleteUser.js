@@ -32,6 +32,12 @@ export async function deleteUserKeepingGroupContent(client, userId) {
        where user_id = $1 and deck_id in (select id from decks where group_id = $2)`,
       [userId, groupId, successor.user_id],
     )
+    // Collocation trong chủ đề nhóm là nội dung dùng chung như từ (câu giao tiếp thì không).
+    await client.query(
+      `update phrases set user_id = $3
+       where user_id = $1 and kind <> 'phrase' and deck_id in (select id from decks where group_id = $2)`,
+      [userId, groupId, successor.user_id],
+    )
     for (const table of ['decks', 'chapters']) {
       await client.query(`update ${table} set user_id = $3 where user_id = $1 and group_id = $2`, [
         userId,

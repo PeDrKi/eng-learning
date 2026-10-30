@@ -76,6 +76,16 @@ export function canMoveWord(word, fromDeck, targetDeck, ctx) {
   return isOwner(targetDeck, ctx) && isOwner(word, ctx)
 }
 
+// ---- Collocation (giới từ cố định, mẫu động từ) ----
+// Chia sẻ theo ĐÚNG luật của từ vựng (collocation nằm trong chủ đề như từ): xem được từ của mình
+// và mọi collocation trong chủ đề nhóm mình tham gia; thành viên thêm được; trưởng nhóm sửa/xoá
+// được mọi mục trong chủ đề nhóm. Câu giao tiếp (kind = 'phrase') thì KHÔNG theo luật này — vẫn
+// là sổ tay cá nhân (phrases.service.js).
+export const canViewCollocation = canViewWord
+export const canAddCollocationToDeck = canAddWordToDeck
+export const canManageCollocation = canManageWord
+export const canMoveCollocation = canMoveWord
+
 // ---- Nhóm học tập ----
 
 // Xem nhóm (tên, danh sách chủ đề chung): thành viên hoặc super admin.

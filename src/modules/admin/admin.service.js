@@ -44,7 +44,7 @@ const OVERVIEW_TOTALS_SQL = `
     (select count(*)::int from groups) as groups,
     (select count(*)::int from decks) as decks,
     (select count(*)::int from words) as words,
-    (select count(*)::int from phrases) as phrases,
+    (select count(*)::int from phrases where kind = 'phrase') as phrases,
     (select count(*)::int from users, b where created_at >= b.today_start - interval '6 days') as new_users_7d,
     (select count(*)::int from users, b where created_at >= b.today_start - interval '29 days') as new_users_30d,
     (select count(distinct user_id)::int from review_log, b where reviewed_at >= b.today_start) as active_today,

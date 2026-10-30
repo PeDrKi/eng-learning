@@ -8,6 +8,9 @@ import { PHRASE_FIELDS } from './phrases.schemas.js'
 // chủ đề của nhóm mình tham gia) — giống danh sách chủ đề FE cho chọn trong form.
 // Sau này mất quyền xem chủ đề đó (rời nhóm) thì câu vẫn giữ deck_id cũ; FE tự ẩn nhãn chủ
 // đề vì không tìm thấy tên, câu giao tiếp vẫn còn nguyên.
+//
+// Bảng `phrases` còn chứa collocation (kind <> 'phrase', migration 022) — module này CHỈ đụng
+// tới câu giao tiếp; collocation có module riêng (modules/collocations) với luật chia sẻ khác.
 
 const deckNotFound = () => badRequest('deck_not_found', 'Chủ đề không tồn tại hoặc bạn không có quyền truy cập.')
 
@@ -23,7 +26,7 @@ export function createPhrasesService({ pool, quotas }) {
       `select p.*, pp.ease_factor, pp.stability, pp.difficulty, pp.interval_days, pp.repetitions, pp.due_at, pp.last_reviewed_at
          from phrases p
          left join phrase_progress pp on pp.phrase_id = p.id and pp.user_id = p.user_id
-        where p.user_id = $1
+        where p.user_id = $1 and p.kind = 'phrase'
         order by p.created_at desc, p.id`,
       [userId],
     )
@@ -47,7 +50,13 @@ export function createPhrasesService({ pool, quotas }) {
   async function create(ctx, data) {
     const { userId } = ctx
     await assertDeckUsable(ctx, data.deck_id)
-    await assertWithinQuota(pool, { table: 'phrases', userId, max: quotas.phrases, what: 'câu giao tiếp' })
+    await assertWithinQuota(pool, {
+      table: 'phrases',
+      filter: "kind = 'phrase'",
+      userId,
+      max: quotas.phrases,
+      what: 'câu giao tiếp',
+    })
     try {
       const { rows } = await pool.query(
         `insert into phrases (user_id, deck_id, phrase, meaning, usage_context, example, formality)
@@ -63,7 +72,10 @@ export function createPhrasesService({ pool, quotas }) {
 
   // Không phải của mình → 404 (không phân biệt với "không tồn tại").
   async function findOwn(userId, id) {
-    const { rows } = await pool.query('select * from phrases where id = $1 and user_id = $2', [id, userId])
+    const { rows } = await pool.query("select * from phrases where id = $1 and user_id = $2 and kind = 'phrase'", [
+      id,
+      userId,
+    ])
     if (!rows[0]) throw notFound('Không tìm thấy câu giao tiếp.')
     return rows[0]
   }
@@ -78,7 +90,7 @@ export function createPhrasesService({ pool, quotas }) {
     const sets = keys.map((k, i) => `${k} = $${i + 3}`)
     try {
       const { rows } = await pool.query(
-        `update phrases set ${sets.join(', ')} where id = $1 and user_id = $2 returning *`,
+        `update phrases set ${sets.join(', ')} where id = $1 and user_id = $2 and kind = 'phrase' returning *`,
         [id, userId, ...keys.map((k) => patch[k])],
       )
       return rows[0]
@@ -89,7 +101,10 @@ export function createPhrasesService({ pool, quotas }) {
   }
 
   async function remove({ userId }, id) {
-    const { rowCount } = await pool.query('delete from phrases where id = $1 and user_id = $2', [id, userId])
+    const { rowCount } = await pool.query("delete from phrases where id = $1 and user_id = $2 and kind = 'phrase'", [
+      id,
+      userId,
+    ])
     if (rowCount === 0) throw notFound('Không tìm thấy câu giao tiếp.')
   }
 

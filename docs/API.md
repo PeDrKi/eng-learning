@@ -18,11 +18,12 @@ Dữ liệu mẫu trong tài liệu được chụp từ API chạy thật (12/1
 8. [Cài đặt học `/settings`](#cài-đặt-học-settings)
 9. [Nhắc học `/push`](#nhắc-học-push)
 10. [Câu giao tiếp `/phrases`](#câu-giao-tiếp-phrases)
-11. [Bài đọc `/readings`](#bài-đọc-readings)
-12. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
-13. [Quản trị `/admin`](#quản-trị-admin)
-14. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
-15. [Mã lỗi](#mã-lỗi)
+11. [Collocation `/collocations`](#collocation-collocations)
+12. [Bài đọc `/readings`](#bài-đọc-readings)
+13. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
+14. [Quản trị `/admin`](#quản-trị-admin)
+15. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
+16. [Mã lỗi](#mã-lỗi)
 
 ## Quy ước chung
 
@@ -388,6 +389,33 @@ Sổ tay **cá nhân**: chỉ chủ sở hữu xem, sửa, xoá (kể cả trư�
 sẵn `ease_factor, stability, difficulty, interval_days, repetitions, due_at, last_reviewed_at`, mới nhất trước.
 `PATCH …/progress` trả `{ id, phrase_id, user_id, ease_factor, stability, difficulty, interval_days, repetitions,
 due_at, last_reviewed_at }`. Body vẫn nhận `ease_factor` để tương thích với bản cũ.
+
+## Collocation `/collocations`
+
+Giới từ cố định (`rely on`) và mẫu động từ (`prevent sb from V-ing`). Lưu cùng bảng với câu giao tiếp
+nhưng **chia sẻ theo luật của từ vựng**: xem được mục của mình và mục trong chủ đề của nhóm mình tham gia;
+thành viên thêm được vào chủ đề nhóm; chỉ trưởng nhóm (hoặc super admin) sửa/xoá mục trong chủ đề nhóm.
+Mỗi người có tiến trình học riêng.
+
+| Method | Đường dẫn                    | Body                                                                                                          | Thành công          |
+| ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------- |
+| GET    | `/collocations`              | —                                                                                                             | 200 `[collocation]` |
+| POST   | `/collocations`              | `{ kind, headword, pattern, answer, meaning, pattern_group?, mistakes?, usage_context?, example?, deck_id? }` | 201 `collocation`   |
+| POST   | `/collocations/bulk`         | `{ collocations: [ ... ] }`                                                                                   | 201 `[collocation]` |
+| PATCH  | `/collocations/:id`          | các field như POST, đều không bắt buộc                                                                        | 200 `collocation`   |
+| PATCH  | `/collocations/:id/progress` | `{ stability?, difficulty?, interval_days?, repetitions?, due_at?, last_reviewed_at? }`                       | 200 tiến trình      |
+| DELETE | `/collocations/:id`          | —                                                                                                             | 204                 |
+
+**Ràng buộc.** `kind` là `dependent_prep` hoặc `verb_pattern`; `headword` (từ gốc, VD `rely`) 1–100 ký tự;
+`pattern` (dạng đầy đủ, VD `rely on sb/sth`) 1–300; `answer` (phần cần nhớ, VD `on` hoặc `from V-ing`) 1–100;
+`meaning` 1–1000; `pattern_group` tối đa 100; `usage_context`, `example` tối đa 2000; `mistakes` (dạng sai hay
+gặp) tối đa 10 mục, mỗi mục tối đa 100 ký tự, tự bỏ ô trống và mục trùng, **không được chứa `answer`** (400
+`answer_in_mistakes`). `bulk` nhận tối đa 500 mục; một mục sai là từ chối cả lô.
+
+`collocation`: `{ id, user_id, deck_id, kind, headword, pattern, answer, pattern_group, mistakes, meaning,
+usage_context, example, created_at }` kèm tiến trình học của người gọi `ease_factor, stability, difficulty,
+interval_days, repetitions, due_at, last_reviewed_at` (null nếu chưa ôn lần nào). `PATCH …/progress` tạo dòng
+tiến trình nếu người gọi chưa có. Ghi lượt ôn: `POST /review-log` với `phrase_id` = id collocation.
 
 ## Bài đọc `/readings`
 

@@ -84,6 +84,7 @@ const schema = z.object({
   QUOTA_WORDS: z.coerce.number().int().positive().default(20_000),
   QUOTA_DECKS: z.coerce.number().int().positive().default(500),
   QUOTA_PHRASES: z.coerce.number().int().positive().default(5_000),
+  QUOTA_COLLOCATIONS: z.coerce.number().int().positive().default(5_000),
   QUOTA_READINGS: z.coerce.number().int().positive().default(500),
   QUOTA_GROUPS: z.coerce.number().int().positive().default(50), // số nhóm 1 người tham gia
 
@@ -173,6 +174,7 @@ export function loadConfig(env = process.env) {
       words: e.QUOTA_WORDS,
       decks: e.QUOTA_DECKS,
       phrases: e.QUOTA_PHRASES,
+      collocations: e.QUOTA_COLLOCATIONS,
       readings: e.QUOTA_READINGS,
       groups: e.QUOTA_GROUPS,
     },

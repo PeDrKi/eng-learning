@@ -15,6 +15,8 @@ import { createWordsRouter } from './modules/words/words.routes.js'
 import { createWordsService } from './modules/words/words.service.js'
 import { createGroupsRouter } from './modules/groups/groups.routes.js'
 import { createGroupsService } from './modules/groups/groups.service.js'
+import { createCollocationsRouter } from './modules/collocations/collocations.routes.js'
+import { createCollocationsService } from './modules/collocations/collocations.service.js'
 import { createPhrasesRouter } from './modules/phrases/phrases.routes.js'
 import { createPhrasesService } from './modules/phrases/phrases.service.js'
 import { createReadingsRouter } from './modules/readings/readings.routes.js'
@@ -99,6 +101,13 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
     '/phrases',
     auth,
     createPhrasesRouter({ phrasesService: createPhrasesService({ pool, quotas: config.quotas }) }),
+  )
+  app.use(
+    '/collocations',
+    auth,
+    createCollocationsRouter({
+      collocationsService: createCollocationsService({ pool, quotas: config.quotas }),
+    }),
   )
   app.use(
     '/readings',

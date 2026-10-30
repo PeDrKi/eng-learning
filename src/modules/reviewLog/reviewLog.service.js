@@ -1,4 +1,5 @@
 import { badRequest, notFound } from '../../lib/httpError.js'
+import { findVisibleCollocation } from '../collocations/collocations.service.js'
 import { findVisibleWord } from '../words/words.service.js'
 
 const DEFAULT_WINDOW_DAYS = 90
@@ -64,9 +65,15 @@ export function createReviewLogService({ pool }) {
     const { userId } = ctx
     if (word_id && !(await findVisibleWord(pool, word_id, ctx))) throw notFound('Không tìm thấy từ.')
     if (phrase_id) {
-      // Câu giao tiếp là sổ tay cá nhân: chỉ chủ sở hữu ghi được lượt ôn.
-      const { rowCount } = await pool.query('select 1 from phrases where id = $1 and user_id = $2', [phrase_id, userId])
-      if (!rowCount) throw notFound('Không tìm thấy câu giao tiếp.')
+      // Câu giao tiếp là sổ tay cá nhân: chỉ chủ sở hữu ghi được lượt ôn. Collocation (cùng bảng)
+      // thì ai XEM được là ôn được — kể cả mục trong chủ đề nhóm do người khác thêm.
+      const { rowCount } = await pool.query(
+        "select 1 from phrases where id = $1 and user_id = $2 and kind = 'phrase'",
+        [phrase_id, userId],
+      )
+      if (!rowCount && !(await findVisibleCollocation(pool, phrase_id, ctx))) {
+        throw notFound('Không tìm thấy câu giao tiếp.')
+      }
     }
     try {
       const { rows } = await pool.query(
