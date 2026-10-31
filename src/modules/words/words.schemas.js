@@ -45,7 +45,7 @@ const pos = z
   .max(POS_CODES.length)
   .transform((list) => [...new Set(list)])
 
-const fields = {
+export const wordFields = {
   word: z.string({ error: 'Vui lòng nhập từ.' }).trim().min(1, 'Vui lòng nhập từ.').max(200, 'Từ tối đa 200 ký tự.'),
   meaning: z
     .string({ error: 'Vui lòng nhập nghĩa.' })
@@ -68,15 +68,15 @@ const fields = {
 }
 
 const newWord = z.object({
-  word: fields.word,
-  meaning: fields.meaning,
-  meaning_en: fields.meaning_en.default(''),
-  example: fields.example.default(''),
-  ipa: fields.ipa.default(''),
-  audio_url: fields.audio_url.default(''),
-  tags: fields.tags.default([]),
-  pos: fields.pos.default([]),
-  deck_id: fields.deck_id.default(null),
+  word: wordFields.word,
+  meaning: wordFields.meaning,
+  meaning_en: wordFields.meaning_en.default(''),
+  example: wordFields.example.default(''),
+  ipa: wordFields.ipa.default(''),
+  audio_url: wordFields.audio_url.default(''),
+  tags: wordFields.tags.default([]),
+  pos: wordFields.pos.default([]),
+  deck_id: wordFields.deck_id.default(null),
 })
 
 export const createWordSchema = newWord
@@ -89,14 +89,14 @@ export const bulkCreateWordsSchema = z.object({
 // ở đây — thuộc bảng word_progress, có endpoint riêng.
 export const updateWordSchema = z
   .object({
-    word: fields.word.optional(),
-    meaning: fields.meaning.optional(),
-    meaning_en: fields.meaning_en.optional(),
-    example: fields.example.optional(),
-    ipa: fields.ipa.optional(),
-    audio_url: fields.audio_url.optional(),
-    tags: fields.tags.optional(),
-    pos: fields.pos.optional(),
-    deck_id: fields.deck_id.optional(),
+    word: wordFields.word.optional(),
+    meaning: wordFields.meaning.optional(),
+    meaning_en: wordFields.meaning_en.optional(),
+    example: wordFields.example.optional(),
+    ipa: wordFields.ipa.optional(),
+    audio_url: wordFields.audio_url.optional(),
+    tags: wordFields.tags.optional(),
+    pos: wordFields.pos.optional(),
+    deck_id: wordFields.deck_id.optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'Không có gì để cập nhật.')

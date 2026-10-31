@@ -27,13 +27,16 @@
 // ============================================================
 
 const isOwner = (row, ctx) => row.user_id === ctx.userId
+// Chủ đề cộng đồng mình đã "Lưu vào thư viện" (migration 023) — chỉ được XEM/HỌC, không sửa.
+// Chủ đề bị quản trị viên gỡ khỏi cộng đồng (hidden_at, migration 026) thì người đã lưu cũng mất quyền xem.
+const isFollowed = (deck, ctx) => !deck.hidden_at && Boolean(ctx.followedDeckIds?.has(deck.id))
 const isMember = (groupId, ctx) => ctx.isSystemAdmin || ctx.roleByGroupId.has(groupId)
 const isAdmin = (groupId, ctx) => ctx.isSystemAdmin || ctx.roleByGroupId.get(groupId) === 'admin'
 
 // ---- Chủ đề ----
 
 export function canViewDeck(deck, ctx) {
-  return deck.group_id ? isMember(deck.group_id, ctx) : isOwner(deck, ctx)
+  return deck.group_id ? isMember(deck.group_id, ctx) : isOwner(deck, ctx) || isFollowed(deck, ctx)
 }
 
 // Đổi tên/màu, xoá chủ đề.
@@ -56,7 +59,8 @@ export function canAddWordToDeck(deck, ctx) {
 
 export function canViewWord(word, deck, ctx) {
   if (isOwner(word, ctx)) return true
-  return Boolean(deck?.group_id) && isMember(deck.group_id, ctx)
+  if (!deck) return false
+  return deck.group_id ? isMember(deck.group_id, ctx) : isFollowed(deck, ctx)
 }
 
 // Sửa nội dung, gắn/gỡ nhãn, xoá từ.
@@ -81,7 +85,11 @@ export function canMoveWord(word, fromDeck, targetDeck, ctx) {
 // và mọi collocation trong chủ đề nhóm mình tham gia; thành viên thêm được; trưởng nhóm sửa/xoá
 // được mọi mục trong chủ đề nhóm. Câu giao tiếp (kind = 'phrase') thì KHÔNG theo luật này — vẫn
 // là sổ tay cá nhân (phrases.service.js).
-export const canViewCollocation = canViewWord
+// Chưa chia sẻ qua cộng đồng (giai đoạn 1 chỉ có từ vựng) → không xét chủ đề đã lưu vào thư viện.
+export function canViewCollocation(item, deck, ctx) {
+  if (isOwner(item, ctx)) return true
+  return Boolean(deck?.group_id) && isMember(deck.group_id, ctx)
+}
 export const canAddCollocationToDeck = canAddWordToDeck
 export const canManageCollocation = canManageWord
 export const canMoveCollocation = canMoveWord

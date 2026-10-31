@@ -19,11 +19,12 @@ Dữ liệu mẫu trong tài liệu được chụp từ API chạy thật (12/1
 9. [Nhắc học `/push`](#nhắc-học-push)
 10. [Câu giao tiếp `/phrases`](#câu-giao-tiếp-phrases)
 11. [Collocation `/collocations`](#collocation-collocations)
-12. [Bài đọc `/readings`](#bài-đọc-readings)
-13. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
-14. [Quản trị `/admin`](#quản-trị-admin)
-15. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
-16. [Mã lỗi](#mã-lỗi)
+12. [Cộng đồng `/community`](#cộng-đồng-community)
+13. [Bài đọc `/readings`](#bài-đọc-readings)
+14. [Nhóm học tập `/groups`](#nhóm-học-tập-groups)
+15. [Quản trị `/admin`](#quản-trị-admin)
+16. [Kiểm tra sức khoẻ `/health`](#kiểm-tra-sức-khoẻ-health)
+17. [Mã lỗi](#mã-lỗi)
 
 ## Quy ước chung
 
@@ -416,6 +417,102 @@ gặp) tối đa 10 mục, mỗi mục tối đa 100 ký tự, tự bỏ ô tr�
 usage_context, example, created_at }` kèm tiến trình học của người gọi `ease_factor, stability, difficulty,
 interval_days, repetitions, due_at, last_reviewed_at` (null nếu chưa ôn lần nào). `PATCH …/progress` tạo dòng
 tiến trình nếu người gọi chưa có. Ghi lượt ôn: `POST /review-log` với `phrase_id` = id collocation.
+
+## Cộng đồng `/community`
+
+Chia sẻ **chủ đề cá nhân** (chỉ từ vựng) cho mọi người dùng đã đăng nhập. Danh tính công khai gồm 2 trường:
+`*_name` (tên hiển thị, `null` nếu chưa đặt) và `*_tag` (4 ký tự hex cố định lấy từ id) — giao diện tự ghép
+"Người học #XXXX" / "Learner #XXXX" theo ngôn ngữ khi chưa có tên. Không bao giờ trả email.
+
+| Method | Đường dẫn                              | Body                                     | Thành công                   |
+| ------ | -------------------------------------- | ---------------------------------------- | ---------------------------- |
+| GET    | `/community/decks`                     | query `q?`                               | 200 `[publicDeck]`           |
+| GET    | `/community/decks/:id`                 | —                                        | 200 `publicDeck` + `words`   |
+| POST   | `/community/decks/:id/follow`          | —                                        | 200 `publicDeck`             |
+| DELETE | `/community/decks/:id/follow`          | —                                        | 204                          |
+| POST   | `/community/decks/:id/copy`            | —                                        | 201 `{ deck, words_copied }` |
+| PUT    | `/community/decks/:id/publish`         | `{ description? }`                       | 200 `publicDeck`             |
+| POST   | `/community/decks/:id/unpublish`       | `{ revoke_followers? }`                  | 200 `{ revoked }`            |
+| GET    | `/community/decks/:id/comments`        | query `word_id?`                         | 200 `[comment]`              |
+| POST   | `/community/decks/:id/comments`        | `{ body, word_id? }`                     | 201 `comment`                |
+| DELETE | `/community/comments/:id`              | —                                        | 204                          |
+| GET    | `/community/suggestions/mine`          | —                                        | 200 `[suggestion]`           |
+| GET    | `/community/decks/:id/suggestions`     | query `status?`                          | 200 `[suggestion]`           |
+| POST   | `/community/decks/:id/suggestions`     | `{ kind, word_id?, proposed?, reason? }` | 201 `suggestion`             |
+| POST   | `/community/suggestions/:id/accept`    | `{ note?, force? }`                      | 200 `suggestion`             |
+| POST   | `/community/suggestions/:id/reject`    | `{ note? }`                              | 200 `suggestion`             |
+| DELETE | `/community/suggestions/:id`           | —                                        | 204                          |
+| GET    | `/community/notifications`             | —                                        | 200 `{ unread, items }`      |
+| POST   | `/community/notifications/read`        | —                                        | 204                          |
+| POST   | `/community/reports`                   | `{ target_type, target_id, reason? }`    | 201 `{ ok }`                 |
+| GET    | `/admin/community/reports`             | query `status?`                          | 200 `[report]`               |
+| POST   | `/admin/community/reports/:id/close`   | `{ status }`                             | 204                          |
+| POST   | `/admin/community/decks/:id/hide`      | —                                        | 204                          |
+| POST   | `/admin/community/decks/:id/unhide`    | —                                        | 204                          |
+| POST   | `/admin/community/comments/:id/hide`   | —                                        | 204                          |
+| POST   | `/admin/community/comments/:id/unhide` | —                                        | 204                          |
+| POST   | `/admin/community/users/:id/block`     | —                                        | 204                          |
+| POST   | `/admin/community/users/:id/unblock`   | —                                        | 204                          |
+
+`publicDeck`: `{ id, name, color, description, is_public, published_at, owner_name, owner_tag, mine, followed, word_count,
+follower_count }`. `GET /community/decks` trả tối đa 100 chủ đề đang công khai, nhiều người lưu nhất trước; `q`
+tìm trong tên, mô tả và tên người chia sẻ. `GET …/:id` kèm `words: [{ id, word, meaning, meaning_en, example, ipa,
+audio_url, pos, created_at, comment_count }]` và `comment_count` của chủ đề — không kèm tiến trình học; xem được khi chủ đề đang công khai, là của mình, hoặc
+mình đã lưu.
+
+**Lưu vào thư viện** (`follow`): chủ đề và từ bên trong hiện trong `GET /decks` (kèm `followed: true`,
+`owner_name`, `chapter_id: null`) và `GET /words` của người lưu; người lưu học với tiến trình riêng
+(`PATCH /progress/:wordId`) nhưng **chỉ đọc** — không sửa/xoá từ, không thêm từ vào chủ đề đó. Tối đa
+`QUOTA_FOLLOWS` (mặc định 200) chủ đề. **Sao chép** (`copy`): tạo chủ đề cá nhân mới với bản sao các từ, độc
+lập với bản gốc (sau này chủ sở hữu sửa thì bản sao không đổi).
+
+**Công khai / tắt công khai**: chỉ chủ sở hữu, chỉ chủ đề cá nhân (chủ đề nhóm → 400
+`group_deck_not_publishable`). `description` tối đa 500 ký tự. Tắt công khai thì không ai lưu thêm được nhưng
+người đã lưu vẫn học tiếp (và vẫn sao chép được); `revoke_followers: true` thì xoá luôn người đã lưu.
+Chủ sở hữu thấy `follower_count` trên chủ đề của mình trong `GET /decks`.
+
+**Nhận xét.** Xem/viết ở chủ đề mình xem được (như `GET …/:id`). `word_id` bỏ trống = nhận xét chung cho chủ
+đề; có `word_id` = nhận xét cho từ đó (phải thuộc chủ đề, nếu không 400 `word_not_in_deck`). `body` 1–1000 ký tự.
+`comment`: `{ id, word_id, body, created_at, author_name, author_tag, mine, can_delete }`, cũ trước mới sau. Xoá
+được: người viết, chủ chủ đề, super admin (khác → 403); xoá mềm — không hiện nữa nhưng còn lưu để kiểm duyệt.
+Giới hạn 20 nhận xét / 10 phút / tài khoản (429). Khi `COMMUNITY_REQUIRE_VERIFIED_EMAIL` bật (mặc định: bật khi
+`EMAIL_VERIFICATION=required`), tài khoản chưa xác nhận email nhận 403 `email_not_verified`.
+
+**Đề xuất chỉnh sửa.** Người khác (không phải chủ chủ đề → 400 `own_deck`) gửi đề xuất cho chủ đề **đang công
+khai**: `kind` = `edit` (`word_id` + `proposed` gồm ít nhất 1 trong `word, meaning, meaning_en, example, ipa`;
+chỉ giữ trường thật sự khác, giống hệt → 400 `no_change`), `add` (`proposed` có `word`, `meaning`) hoặc `delete`
+(`word_id` + `reason` bắt buộc). `reason` tối đa 1000 ký tự. Từ không thuộc chủ đề → 400 `word_not_in_deck`.
+Giới hạn 30 đề xuất / giờ / tài khoản; cùng luật xác nhận email như nhận xét.
+
+`suggestion`: `{ id, deck_id, word_id, kind, base, proposed, reason, status, review_note, created_at,
+reviewed_at, author_name, author_tag, mine, current, conflict }` (`…/mine` kèm `deck_name`). `base` = nội dung từ
+lúc đề xuất, `current` = nội dung hiện tại (null nếu từ không còn), `conflict` = đang chờ mà từ đã khác `base`.
+`status`: `pending`, `accepted`, `rejected`, `stale` (từ đã bị xoá/chuyển khỏi chủ đề). `GET …/suggestions`:
+chủ chủ đề thấy mọi đề xuất, người khác chỉ thấy của mình; `status` mặc định `pending` (`all` = tất cả).
+
+**Duyệt** (chỉ chủ chủ đề; khác → 404): `accept` áp dụng — `edit` ghi các trường đề xuất vào từ, `add` tạo từ
+mới (của chủ chủ đề, trong chủ đề đó), `delete` xoá từ. Từ đã khác `base` → 409 `suggestion_conflict`, gửi lại với
+`force: true` để vẫn áp dụng. Đã xử lý → 409 `suggestion_closed`; từ không còn → 409 `suggestion_stale`. `reject`
+kèm `note` tuỳ chọn. Người đề xuất rút lại được đề xuất đang chờ (`DELETE`). Chủ sở hữu thấy
+`pending_suggestions` trên chủ đề cá nhân của mình trong `GET /decks`.
+
+**Thông báo.** Ghi khi có nhận xét / đề xuất mới ở chủ đề của mình (`comment`, `suggestion`) và khi đề xuất của
+mình được duyệt (`suggestion_result`, `payload.status`). `GET` trả `{ unread, items }` (50 mới nhất; mỗi mục `{ id,
+type, deck_id, payload, created_at, read_at, actor_name, actor_tag }`, `payload.deck_name` luôn có). Máy chủ có
+khoá VAPID thì gửi thêm Web Push tới các thiết bị người đó đã bật nhắc học — tối đa 1 lần / 15 phút / người.
+
+**Báo cáo vi phạm.** `target_type` = `deck`, `comment` hoặc `suggestion`; nội dung phải còn và người báo cáo xem
+được (nếu không 404). Gửi lại khi đang có báo cáo mở cho cùng nội dung thì không tạo bản trùng. Tối đa 20 báo cáo
+/ giờ.
+
+**Kiểm duyệt** (`/admin/community/*`, chỉ super admin). `report`: `{ id, target_type, target_id, reason, status,
+created_at, resolved_at, reporter_name, reporter_tag, target: { title, text, deck_id, owner_id, owner_name,
+owner_tag, owner_blocked, hidden } }`; `status` lọc `open` (mặc định), `resolved`, `dismissed`, `all`. `close`
+nhận `status` = `resolved` hoặc `dismissed`. **Ẩn chủ đề**: biến mất khỏi Khám phá và khỏi thư viện của người đã
+lưu, chủ sở hữu vẫn thấy (`hidden_at`) nhưng công khai lại → 409 `deck_hidden`. **Ẩn nhận xét** = xoá mềm. Ẩn
+xong tự đóng các báo cáo đang mở về nội dung đó. **Chặn người dùng**: không chia sẻ / nhận xét / đề xuất / báo cáo
+được (403 `community_blocked`) nhưng vẫn học, lưu, sao chép được; không chặn được super admin (400
+`cannot_block_admin`).
 
 ## Bài đọc `/readings`
 

@@ -85,6 +85,7 @@ const schema = z.object({
   QUOTA_DECKS: z.coerce.number().int().positive().default(500),
   QUOTA_PHRASES: z.coerce.number().int().positive().default(5_000),
   QUOTA_COLLOCATIONS: z.coerce.number().int().positive().default(5_000),
+  QUOTA_FOLLOWS: z.coerce.number().int().positive().default(200), // số chủ đề cộng đồng 1 người lưu
   QUOTA_READINGS: z.coerce.number().int().positive().default(500),
   QUOTA_GROUPS: z.coerce.number().int().positive().default(50), // số nhóm 1 người tham gia
 
@@ -104,6 +105,10 @@ const schema = z.object({
   //              chạy, vì người đăng ký mới sẽ không bao giờ nhận được link.
   EMAIL_VERIFICATION: z.enum(['off', 'required']).default('off'),
   EMAIL_VERIFY_TTL_HOURS: z.coerce.number().int().positive().max(720).default(24),
+  // Nhận xét ở trang cộng đồng chỉ cho tài khoản ĐÃ XÁC NHẬN EMAIL (chống tài khoản rác).
+  // Bỏ trống = theo EMAIL_VERIFICATION: bật xác nhận email thì đòi, tắt thì không (vì khi tắt,
+  // không ai có cách xác nhận). Đặt true/false để ép.
+  COMMUNITY_REQUIRE_VERIFIED_EMAIL: bool.optional(),
 
   // console = in ra log (phát triển) | smtp = gửi qua SMTP | resend / brevo = gửi qua HTTP API.
   // Web service GÓI MIỄN PHÍ của Render chặn mọi cổng SMTP (25/465/587) → dùng `brevo` (gửi được
@@ -159,6 +164,7 @@ export function loadConfig(env = process.env) {
       resetTtlMinutes: e.PASSWORD_RESET_TTL_MINUTES,
       resetMinResponseMs: e.PASSWORD_RESET_MIN_RESPONSE_MS,
       emailVerification: e.EMAIL_VERIFICATION === 'required',
+      communityRequireVerified: e.COMMUNITY_REQUIRE_VERIFIED_EMAIL ?? e.EMAIL_VERIFICATION === 'required',
       verifyTtlHours: e.EMAIL_VERIFY_TTL_HOURS,
     },
     cors: { origins: e.CORS_ORIGINS },
@@ -175,6 +181,7 @@ export function loadConfig(env = process.env) {
       decks: e.QUOTA_DECKS,
       phrases: e.QUOTA_PHRASES,
       collocations: e.QUOTA_COLLOCATIONS,
+      follows: e.QUOTA_FOLLOWS,
       readings: e.QUOTA_READINGS,
       groups: e.QUOTA_GROUPS,
     },

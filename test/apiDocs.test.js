@@ -13,7 +13,7 @@ const read = (p) => readFileSync(join(root, p), 'utf8')
 function mountPrefixes() {
   const app = read('src/app.js')
   const prefixes = {}
-  for (const m of app.matchAll(/app\.use\(\s*'(\/[a-z-]*)'[\s\S]*?create(\w+)Router\(/g)) prefixes[m[2]] = m[1]
+  for (const m of app.matchAll(/app\.use\(\s*'(\/[a-z/-]*)'[\s\S]*?create(\w+)Router\(/g)) prefixes[m[2]] = m[1]
   return prefixes
 }
 

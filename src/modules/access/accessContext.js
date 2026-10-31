@@ -17,7 +17,16 @@ export async function loadAccessContext(db, userId) {
   if (rows[0].disabled_at) throw accountDisabled()
   const roleByGroupId = new Map()
   for (const r of rows) if (r.group_id) roleByGroupId.set(r.group_id, r.role)
-  return { userId, role: rows[0].system_role, isSystemAdmin: isSystemAdmin(rows[0].system_role), roleByGroupId }
+  // Chủ đề cộng đồng đã "Lưu vào thư viện" (migration 023) — xem được và học được như chủ đề nhóm.
+  const { rows: follows } = await db.query('select deck_id from deck_follows where user_id = $1', [userId])
+  const followedDeckIds = new Set(follows.map((f) => f.deck_id))
+  return {
+    userId,
+    role: rows[0].system_role,
+    isSystemAdmin: isSystemAdmin(rows[0].system_role),
+    roleByGroupId,
+    followedDeckIds,
+  }
 }
 
 // Điều kiện SQL tương đương canViewDeck() — dùng cho truy vấn DANH SÁCH (lọc ngay trong DB
@@ -28,4 +37,13 @@ export const SQL_CAN_VIEW_DECK = `(
   or (d.group_id is not null and ($2 or exists (
     select 1 from group_members gm where gm.group_id = d.group_id and gm.user_id = $1
   )))
+)`
+
+// Như SQL_CAN_VIEW_DECK nhưng cho bảng decks, thêm chủ đề cộng đồng đã "Lưu vào thư viện" —
+// tương đương canViewDeck() khi có ctx.followedDeckIds. (SQL_CAN_VIEW_DECK còn dùng cho bảng
+// chapters, nơi không có khái niệm theo dõi.)
+export const SQL_DECK_IN_LIBRARY = `(${SQL_CAN_VIEW_DECK}
+  or (d.group_id is null and d.hidden_at is null and exists (
+    select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1
+  ))
 )`

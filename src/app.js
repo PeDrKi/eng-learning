@@ -15,6 +15,13 @@ import { createWordsRouter } from './modules/words/words.routes.js'
 import { createWordsService } from './modules/words/words.service.js'
 import { createGroupsRouter } from './modules/groups/groups.routes.js'
 import { createGroupsService } from './modules/groups/groups.service.js'
+import { createCommunityRouter } from './modules/community/community.routes.js'
+import { createCommunityService } from './modules/community/community.service.js'
+import { createSuggestionsService } from './modules/community/suggestions.service.js'
+import { createModerationService } from './modules/community/moderation.service.js'
+import { createNotifier } from './modules/community/notify.js'
+import { createModerationRouter } from './modules/community/moderation.routes.js'
+import { createSender } from './modules/push/deliver.js'
 import { createCollocationsRouter } from './modules/collocations/collocations.routes.js'
 import { createCollocationsService } from './modules/collocations/collocations.service.js'
 import { createPhrasesRouter } from './modules/phrases/phrases.routes.js'
@@ -29,7 +36,13 @@ import { createSettingsRouter } from './modules/settings/settings.js'
 import { createPushRouter } from './modules/push/push.js'
 import { createAdminRouter } from './modules/admin/admin.routes.js'
 import { createAdminService } from './modules/admin/admin.service.js'
-import { createApiLimiter, createJoinLimiter } from './middleware/rateLimits.js'
+import {
+  createApiLimiter,
+  createCommentLimiter,
+  createJoinLimiter,
+  createReportLimiter,
+  createSuggestionLimiter,
+} from './middleware/rateLimits.js'
 import { requestLog } from './middleware/requestLog.js'
 import { requireActiveUser, requireSuperAdmin } from './middleware/requireActiveUser.js'
 import { requireAuth } from './middleware/requireAuth.js'
@@ -108,6 +121,35 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
     createCollocationsRouter({
       collocationsService: createCollocationsService({ pool, quotas: config.quotas }),
     }),
+  )
+  // Thông báo cộng đồng: luôn ghi trong app; gửi thêm Web Push khi máy chủ có khoá VAPID.
+  const notify = createNotifier({
+    pool,
+    send: config.push.enabled ? createSender(config) : null,
+    log: config.env === 'test' ? () => {} : console.error,
+  })
+  const communityDeps = {
+    pool,
+    quotas: config.quotas,
+    requireVerifiedEmail: config.auth.communityRequireVerified,
+    notify,
+  }
+  app.use(
+    '/community',
+    auth,
+    createCommunityRouter({
+      communityService: createCommunityService(communityDeps),
+      suggestionsService: createSuggestionsService(communityDeps),
+      commentLimiter: createCommentLimiter(config.rateLimitEnabled, rateLimitStore),
+      suggestionLimiter: createSuggestionLimiter(config.rateLimitEnabled, rateLimitStore),
+      reportLimiter: createReportLimiter(config.rateLimitEnabled, rateLimitStore),
+    }),
+  )
+  app.use(
+    '/admin/community',
+    auth,
+    requireSuperAdmin,
+    createModerationRouter({ moderationService: createModerationService({ pool }) }),
   )
   app.use(
     '/readings',

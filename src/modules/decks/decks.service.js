@@ -1,6 +1,7 @@
 import { assertWithinQuota } from '../../lib/quotas.js'
 import { badRequest, forbidden, notFound } from '../../lib/httpError.js'
-import { SQL_CAN_VIEW_DECK } from '../access/accessContext.js'
+import { SQL_DECK_IN_LIBRARY } from '../access/accessContext.js'
+import { sqlPublicIdentity } from '../../lib/publicName.js'
 import { assertChapterFitsDeck } from '../chapters/chapters.service.js'
 import { canCreateDeck, canManageDeck, canViewDeck } from '../access/permissions.js'
 
@@ -18,10 +19,26 @@ export function createDecksService({ pool, quotas }) {
   const assertDeckQuota = (userId, adding) =>
     assertWithinQuota(pool, { table: 'decks', userId, adding, max: quotas.decks, what: 'chủ đề con' })
 
+  // Chủ đề của mình + chủ đề nhóm + chủ đề cộng đồng đã lưu vào thư viện. Với chủ đề đã lưu:
+  // `followed` = true, kèm tên công khai của chủ sở hữu (không bao giờ email), và chapter_id bị
+  // ẩn (chương là của người khác, mình không xem được). Chủ đề của mình đang công khai kèm số
+  // người đã lưu, để chủ sở hữu biết trước khi tắt công khai.
   async function list(ctx) {
     const { userId } = ctx
     const { rows } = await pool.query(
-      `select d.* from decks d where ${SQL_CAN_VIEW_DECK} order by d.created_at asc, d.id`,
+      `select d.*,
+              (d.group_id is null and d.user_id <> $1) as followed,
+              case when d.group_id is null and d.user_id <> $1 then null else d.chapter_id end as chapter_id,
+              ${sqlPublicIdentity('owner')},
+              case when d.is_public and d.user_id = $1
+                   then (select count(*)::int from deck_follows f where f.deck_id = d.id) end as follower_count,
+              case when d.group_id is null and d.user_id = $1
+                   then (select count(*)::int from edit_suggestions s
+                          where s.deck_id = d.id and s.status = 'pending') end as pending_suggestions
+         from decks d
+         join users u on u.id = d.user_id
+        where ${SQL_DECK_IN_LIBRARY}
+        order by d.created_at asc, d.id`,
       [userId, ctx.isSystemAdmin],
     )
     return rows

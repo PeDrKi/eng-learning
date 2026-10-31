@@ -42,13 +42,16 @@ const PROGRESS_JOIN = 'left join word_progress p on p.word_id = w.id and p.user_
 
 export function createWordsService({ pool, quotas }) {
   // Danh sách từ xem được: từ của chính mình (mọi chủ đề), cộng với từ trong chủ đề của các
-  // nhóm mình là thành viên (super admin: mọi nhóm). Điều kiện tương đương canViewWord().
+  // nhóm mình là thành viên (super admin: mọi nhóm) và trong chủ đề cộng đồng mình đã lưu vào
+  // thư viện. Điều kiện tương đương canViewWord().
   // Không truyền `limit` → trả mảng đầy đủ; có `limit` → trả 1 trang { items, next_cursor }.
   async function list(ctx, { limit, cursor } = {}) {
     const { userId } = ctx
     const visible = `(w.user_id = $1
           or (d.group_id is not null and ($2 or exists (
-                select 1 from group_members gm where gm.group_id = d.group_id and gm.user_id = $1))))`
+                select 1 from group_members gm where gm.group_id = d.group_id and gm.user_id = $1)))
+          or (d.group_id is null and d.hidden_at is null and exists (
+                select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1)))`
     if (limit === undefined) {
       const { rows } = await pool.query(
         `select w.*, ${PROGRESS_COLUMNS} from words w

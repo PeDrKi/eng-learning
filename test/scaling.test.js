@@ -90,11 +90,14 @@ describe('Kho đếm giới hạn request dùng chung (chạy nhiều instance)'
     const sharedApp = createApp({ config: testConfig({ RATE_LIMIT_ENABLED: 'true' }), pool, mailer, rateLimitStore })
     expect(prefixes.toSorted()).toEqual([
       'rl:api:',
+      'rl:comment:',
       'rl:credentials:',
       'rl:join:',
       'rl:login-email:',
       'rl:password-reset:',
       'rl:register:',
+      'rl:report:',
+      'rl:suggestion:',
       'rl:verification-email:',
     ])
 

@@ -69,6 +69,44 @@ export function createApiLimiter(enabled, createStore) {
   })
 }
 
+// Nhận xét cộng đồng: tối đa 20 nhận xét / 10 phút / tài khoản — đủ cho thảo luận thật, chặn spam.
+export function createCommentLimiter(enabled, createStore) {
+  return limiter({
+    name: 'comment',
+    windowMs: 10 * 60_000,
+    limit: 20,
+    enabled,
+    createStore,
+    keyGenerator: (req) => `user:${req.user.id}`,
+    message: 'Bạn nhận xét quá nhiều trong thời gian ngắn — vui lòng đợi vài phút.',
+  })
+}
+
+// Đề xuất chỉnh sửa: tối đa 30 đề xuất / giờ / tài khoản.
+export function createSuggestionLimiter(enabled, createStore) {
+  return limiter({
+    name: 'suggestion',
+    windowMs: 60 * 60_000,
+    limit: 30,
+    enabled,
+    createStore,
+    keyGenerator: (req) => `user:${req.user.id}`,
+    message: 'Bạn gửi quá nhiều đề xuất trong thời gian ngắn — vui lòng đợi một lúc.',
+  })
+}
+
+// Báo cáo vi phạm: tối đa 20 báo cáo / giờ / tài khoản.
+export function createReportLimiter(enabled, createStore) {
+  return limiter({
+    name: 'report',
+    windowMs: 60 * 60_000,
+    limit: 20,
+    enabled,
+    createStore,
+    keyGenerator: (req) => `user:${req.user.id}`,
+  })
+}
+
 // Chặn dò mã mời nhóm: tối đa 20 lần thử / 15 phút / IP.
 export function createJoinLimiter(enabled, createStore) {
   return rateLimit({

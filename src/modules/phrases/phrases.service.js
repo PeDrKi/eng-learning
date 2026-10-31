@@ -17,7 +17,9 @@ const deckNotFound = () => badRequest('deck_not_found', 'Chủ đề không tồ
 export function createPhrasesService({ pool, quotas }) {
   async function assertDeckUsable(ctx, deckId) {
     if (!deckId) return
-    if (!(await findVisibleDeck(pool, deckId, ctx))) throw deckNotFound()
+    const deck = await findVisibleDeck(pool, deckId, ctx)
+    // Chủ đề cộng đồng đã lưu (của người khác) chỉ để học, không gắn câu của mình vào được.
+    if (!deck || (!deck.group_id && deck.user_id !== ctx.userId)) throw deckNotFound()
   }
 
   // Trả kèm tiến trình học của câu (migration 006) — như GET /words, để FE không phải gọi thêm.
