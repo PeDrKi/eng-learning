@@ -3,20 +3,23 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/httpError.j
 import { assertCommunityAllowed } from './guard.js'
 import { assertWithinQuota } from '../../lib/quotas.js'
 import { sqlPublicIdentity } from '../../lib/publicName.js'
+import { canManageDeck } from '../access/permissions.js'
+import { managersOf, sqlIsGroupMember, sqlIsManager } from './deckAccess.js'
 
 // Cộng đồng — giai đoạn 1: công khai chủ đề cá nhân, trang Khám phá, "Lưu vào thư viện" (theo dõi:
 // học thẳng chủ đề của người khác, thấy ngay chỉnh sửa của họ) và "Sao chép" (bản riêng, độc lập).
 //
 // Chỉ người ĐÃ ĐĂNG NHẬP xem được (router gắn sau requireUser). Chỉ hiện tên công khai của chủ sở
-// hữu (lib/publicName.js), không bao giờ email. Chỉ chủ đề CÁ NHÂN được công khai (ràng buộc DB
-// decks_public_personal_only) và chỉ chủ sở hữu bật/tắt được.
+// hữu (lib/publicName.js), không bao giờ email. Chủ đề cá nhân do chủ sở hữu bật/tắt; chủ đề NHÓM do
+// trưởng nhóm (migration 027) — khi đó Khám phá ghi tên nhóm, mọi trưởng nhóm duyệt đề xuất/nhận thông báo.
 
 const deckNotFound = () => notFound('Không tìm thấy chủ đề công khai.')
 
-// Cột trả ra cho một chủ đề công khai. $1 = người gọi (để biết `followed` / `mine`).
+// Cột trả ra cho một chủ đề công khai. $1 = người gọi, $3 = người gọi là super admin. `mine` = mình
+// QUẢN LÝ chủ đề này (chủ sở hữu, hoặc trưởng nhóm với chủ đề nhóm); `group_name` có khi là chủ đề nhóm.
 const DECK_COLUMNS = `d.id, d.name, d.color, d.description, d.is_public, d.published_at, (d.hidden_at is not null) as hidden,
-       ${sqlPublicIdentity('owner')},
-       (d.user_id = $1) as mine,
+       ${sqlPublicIdentity('owner')}, g.name as group_name,
+       ${sqlIsManager('$1', '$3')} as mine,
        exists (select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1) as followed,
        (select count(*)::int from words w where w.deck_id = d.id) as word_count,
        (select count(*)::int from deck_follows f where f.deck_id = d.id) as follower_count`
@@ -27,35 +30,37 @@ const WORD_COLUMNS = 'w.id, w.word, w.meaning, w.meaning_en, w.example, w.ipa, w
 export function createCommunityService({ pool, quotas, requireVerifiedEmail = false, notify = async () => {} }) {
   // Xem được: chủ đề đang công khai, hoặc mình đã lưu (kể cả khi chủ sở hữu đã tắt công khai mà
   // không thu hồi), hoặc của chính mình.
-  async function findViewable(db, userId, deckId) {
+  // Thành viên nhóm luôn xem được chủ đề của nhóm mình (kể cả khi bị quản trị viên ẩn khỏi cộng đồng).
+  async function findViewable(db, ctx, deckId) {
     const { rows } = await db.query(
       `select ${DECK_COLUMNS}, d.user_id, d.group_id
-         from decks d join users u on u.id = d.user_id
-        where d.id = $2 and d.group_id is null
-          and (d.user_id = $1
+         from decks d join users u on u.id = d.user_id left join groups g on g.id = d.group_id
+        where d.id = $2
+          and (${sqlIsManager('$1', '$3')} or ${sqlIsGroupMember('$1')}
                or (d.hidden_at is null and (d.is_public
                    or exists (select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1))))`,
-      [userId, deckId],
+      [ctx.userId, deckId, ctx.isSystemAdmin],
     )
     return rows[0] ?? null
   }
 
-  async function listPublic({ userId }, { q } = {}) {
+  async function listPublic({ userId, isSystemAdmin }, { q } = {}) {
     const pattern = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null
     const { rows } = await pool.query(
       `select ${DECK_COLUMNS}
-         from decks d join users u on u.id = d.user_id
+         from decks d join users u on u.id = d.user_id left join groups g on g.id = d.group_id
         where d.is_public and d.hidden_at is null
-          and ($2::text is null or d.name ilike $2 or d.description ilike $2 or u.display_name ilike $2)
+          and ($2::text is null or d.name ilike $2 or d.description ilike $2 or u.display_name ilike $2
+               or g.name ilike $2)
         order by follower_count desc, d.published_at desc, d.id
         limit 100`,
-      [userId, pattern],
+      [userId, pattern, isSystemAdmin],
     )
     return rows
   }
 
-  async function getDeck({ userId }, deckId) {
-    const deck = await findViewable(pool, userId, deckId)
+  async function getDeck(ctx, deckId) {
+    const deck = await findViewable(pool, ctx, deckId)
     if (!deck) throw deckNotFound()
     const { rows: words } = await pool.query(
       `select ${WORD_COLUMNS},
@@ -78,7 +83,7 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
   // nhận xét chung cho cả chủ đề. Người viết và chủ chủ đề xoá được (super admin cũng vậy — kiểm duyệt).
 
   async function listComments(ctx, deckId, { word_id }) {
-    const deck = await findViewable(pool, ctx.userId, deckId)
+    const deck = await findViewable(pool, ctx, deckId)
     if (!deck) throw deckNotFound()
     const { rows } = await pool.query(
       `select c.id, c.word_id, c.body, c.created_at, ${sqlPublicIdentity('author')},
@@ -95,7 +100,7 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
 
   async function addComment(ctx, deckId, { body, word_id }) {
     const { userId } = ctx
-    const deck = await findViewable(pool, userId, deckId)
+    const deck = await findViewable(pool, ctx, deckId)
     if (!deck) throw deckNotFound()
     await assertCommunityAllowed(pool, userId, { requireVerifiedEmail })
     if (word_id) {
@@ -106,33 +111,35 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
       'insert into comments (deck_id, word_id, user_id, body) values ($1, $2, $3, $4) returning id',
       [deckId, word_id ?? null, userId, body],
     )
-    await notify(deck.user_id, {
-      type: 'comment',
-      deckId,
-      actorId: userId,
-      payload: { deck_name: deck.name, comment_id: rows[0].id, word_id: word_id ?? null },
-    })
+    for (const managerId of await managersOf(pool, deckId)) {
+      await notify(managerId, {
+        type: 'comment',
+        deckId,
+        actorId: userId,
+        payload: { deck_name: deck.name, comment_id: rows[0].id, word_id: word_id ?? null },
+      })
+    }
     const list = await listComments(ctx, deckId, { word_id })
     return list.find((c) => c.id === rows[0].id)
   }
 
   async function deleteComment(ctx, commentId) {
     const { rows } = await pool.query(
-      `select c.user_id, d.user_id as deck_owner
+      `select c.user_id, ${sqlIsManager('$2', '$3')} as manager
          from comments c join decks d on d.id = c.deck_id
         where c.id = $1 and c.deleted_at is null`,
-      [commentId],
+      [commentId, ctx.userId, ctx.isSystemAdmin],
     )
     const found = rows[0]
     if (!found) throw notFound('Không tìm thấy nhận xét.')
-    const allowed = found.user_id === ctx.userId || found.deck_owner === ctx.userId || ctx.isSystemAdmin
+    const allowed = found.user_id === ctx.userId || found.manager || ctx.isSystemAdmin
     if (!allowed) throw forbidden('Chỉ người viết hoặc chủ chủ đề mới xoá được nhận xét này.')
     await pool.query('update comments set deleted_at = now(), deleted_by = $2 where id = $1', [commentId, ctx.userId])
   }
 
   async function follow(ctx, deckId) {
     const { userId } = ctx
-    const deck = await findViewable(pool, userId, deckId)
+    const deck = await findViewable(pool, ctx, deckId)
     if (!deck || !deck.is_public) throw deckNotFound()
     if (deck.mine) throw badRequest('own_deck', 'Đây là chủ đề của bạn — không cần lưu vào thư viện.')
     if (!deck.followed) {
@@ -147,7 +154,7 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
         deckId,
       ])
     }
-    return findViewable(pool, userId, deckId).then(stripOwner)
+    return findViewable(pool, ctx, deckId).then(stripOwner)
   }
 
   async function unfollow({ userId }, deckId) {
@@ -158,7 +165,7 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
   // sở hữu (khác "Lưu vào thư viện"). Tiến trình học bắt đầu từ đầu (trigger handle_new_word).
   async function copy(ctx, deckId) {
     const { userId } = ctx
-    const deck = await findViewable(pool, userId, deckId)
+    const deck = await findViewable(pool, ctx, deckId)
     if (!deck) throw deckNotFound()
     if (deck.mine) throw badRequest('own_deck', 'Đây là chủ đề của bạn — không cần sao chép.')
     return withTransaction(pool, async (client) => {
@@ -187,22 +194,23 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
     })
   }
 
-  async function findOwnPersonal(userId, deckId) {
-    const { rows } = await pool.query('select * from decks where id = $1 and user_id = $2', [deckId, userId])
+  // Chủ đề mình được bật/tắt chia sẻ: cá nhân của mình, hoặc chủ đề nhóm mình là trưởng nhóm. Chủ
+  // đề cá nhân của người khác → 404 (không lộ là có tồn tại); chủ đề nhóm mình chỉ là thành viên → 403.
+  async function findManageable(ctx, deckId) {
+    const { rows } = await pool.query('select * from decks where id = $1', [deckId])
     const deck = rows[0]
-    if (!deck) throw notFound('Không tìm thấy chủ đề con.')
-    if (deck.group_id) {
-      throw badRequest(
-        'group_deck_not_publishable',
-        'Chỉ chủ đề cá nhân mới công khai được — chủ đề nhóm thuộc về nhóm.',
-      )
+    const visible =
+      deck && (deck.group_id ? ctx.isSystemAdmin || ctx.roleByGroupId.has(deck.group_id) : deck.user_id === ctx.userId)
+    if (!visible) throw notFound('Không tìm thấy chủ đề con.')
+    if (!canManageDeck(deck, ctx)) {
+      throw forbidden('Chỉ trưởng nhóm mới chia sẻ được chủ đề của nhóm ra cộng đồng.')
     }
     return deck
   }
 
-  async function publish({ userId }, deckId, { description }) {
-    const deck = await findOwnPersonal(userId, deckId)
-    await assertCommunityAllowed(pool, userId)
+  async function publish(ctx, deckId, { description }) {
+    const deck = await findManageable(ctx, deckId)
+    await assertCommunityAllowed(pool, ctx.userId)
     if (deck.hidden_at) {
       throw conflict('deck_hidden', 'Chủ đề này đã bị quản trị viên gỡ khỏi cộng đồng — không công khai lại được.')
     }
@@ -211,11 +219,11 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
         where id = $1`,
       [deckId, description],
     )
-    return findViewable(pool, userId, deckId).then(stripOwner)
+    return findViewable(pool, ctx, deckId).then(stripOwner)
   }
 
-  async function unpublish({ userId }, deckId, { revoke_followers }) {
-    await findOwnPersonal(userId, deckId)
+  async function unpublish(ctx, deckId, { revoke_followers }) {
+    await findManageable(ctx, deckId)
     return withTransaction(pool, async (client) => {
       await client.query('update decks set is_public = false, published_at = null where id = $1', [deckId])
       let revoked = 0
@@ -263,7 +271,7 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
       const { rows } = await pool.query('select deck_id from edit_suggestions where id = $1', [target_id])
       deckId = rows[0]?.deck_id
     }
-    if (!deckId || !(await findViewable(pool, userId, deckId))) throw notFound('Không tìm thấy nội dung cần báo cáo.')
+    if (!deckId || !(await findViewable(pool, ctx, deckId))) throw notFound('Không tìm thấy nội dung cần báo cáo.')
     await pool.query(
       `insert into reports (reporter_id, target_type, target_id, reason) values ($1, $2, $3, $4)
        on conflict (reporter_id, target_type, target_id) where status = 'open' do nothing`,

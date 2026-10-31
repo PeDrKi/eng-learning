@@ -4,6 +4,7 @@ import { assertCommunityAllowed } from './guard.js'
 import { assertWithinQuota } from '../../lib/quotas.js'
 import { sqlPublicIdentity } from '../../lib/publicName.js'
 import { SUGGESTION_FIELDS } from './community.schemas.js'
+import { managersOf, sqlIsGroupMember, sqlIsManager } from './deckAccess.js'
 
 // Đề xuất chỉnh sửa (giai đoạn 3) — giống "pull request" cho chủ đề công khai: người khác đề xuất
 // sửa / thêm / xoá từ, CHỈ chủ chủ đề áp dụng (Đồng ý) hoặc từ chối, có thể kèm ghi chú. Người
@@ -34,15 +35,18 @@ function withConflict(row) {
 }
 
 export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = false, notify = async () => {} }) {
-  async function findDeck(db, userId, deckId) {
+  // Chủ đề xem được ở cộng đồng, kèm `is_manager` (chủ sở hữu / trưởng nhóm / super admin — người
+  // duyệt đề xuất). Thành viên nhóm luôn xem được chủ đề nhóm của mình.
+  async function findDeck(db, ctx, deckId) {
     const { rows } = await db.query(
-      `select d.*, exists (select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1) as followed
-         from decks d where d.id = $2 and d.group_id is null`,
-      [userId, deckId],
+      `select d.*, ${sqlIsManager('$1', '$3')} as is_manager, ${sqlIsGroupMember('$1')} as is_member,
+              exists (select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1) as followed
+         from decks d where d.id = $2`,
+      [ctx.userId, deckId, ctx.isSystemAdmin],
     )
     const deck = rows[0]
     if (!deck) return null
-    if (deck.user_id !== userId && (deck.hidden_at || !(deck.is_public || deck.followed))) return null
+    if (!deck.is_manager && !deck.is_member && (deck.hidden_at || !(deck.is_public || deck.followed))) return null
     return deck
   }
 
@@ -70,9 +74,9 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
 
   async function create(ctx, deckId, input) {
     const { userId } = ctx
-    const deck = await findDeck(pool, userId, deckId)
+    const deck = await findDeck(pool, ctx, deckId)
     if (!deck || !deck.is_public || deck.hidden_at) throw deckNotFound()
-    if (deck.user_id === userId) {
+    if (deck.is_manager) {
       throw badRequest('own_deck', 'Đây là chủ đề của bạn — hãy sửa trực tiếp thay vì gửi đề xuất.')
     }
     await assertCommunityAllowed(pool, userId, { requireVerifiedEmail })
@@ -96,19 +100,21 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
        values ($1, $2, $3, $4, $5, $6, $7) returning id`,
       [deckId, input.word_id ?? null, userId, input.kind, base, proposed, input.reason ?? ''],
     )
-    await notify(deck.user_id, {
-      type: 'suggestion',
-      deckId,
-      actorId: userId,
-      payload: { deck_name: deck.name, suggestion_id: rows[0].id, kind: input.kind },
-    })
+    for (const managerId of await managersOf(pool, deckId)) {
+      await notify(managerId, {
+        type: 'suggestion',
+        deckId,
+        actorId: userId,
+        payload: { deck_name: deck.name, suggestion_id: rows[0].id, kind: input.kind },
+      })
+    }
     return getOne(pool, userId, rows[0].id)
   }
 
   // Chủ chủ đề thấy mọi đề xuất; người khác chỉ thấy đề xuất của chính mình.
   async function listForDeck(ctx, deckId, { status }) {
     const { userId } = ctx
-    const deck = await findDeck(pool, userId, deckId)
+    const deck = await findDeck(pool, ctx, deckId)
     if (!deck) throw deckNotFound()
     await markStale(pool, deckId)
     const { rows } = await pool.query(
@@ -117,7 +123,7 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
          left join words w on w.id = s.word_id and w.deck_id = s.deck_id
         where s.deck_id = $2 and ($3 = 'all' or s.status = $3) and ($4 or s.user_id = $1)
         order by s.created_at asc, s.id`,
-      [userId, deckId, status, deck.user_id === userId],
+      [userId, deckId, status, deck.is_manager],
     )
     return rows.map(withConflict)
   }
@@ -138,14 +144,15 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
 
   // Lấy đề xuất ĐANG CHỜ của 1 chủ đề mình sở hữu (khoá dòng tới hết transaction: 2 người duyệt
   // cùng lúc không áp dụng 2 lần).
-  async function loadForReview(client, userId, id) {
+  async function loadForReview(client, ctx, id) {
     const { rows } = await client.query(
-      `select s.*, d.user_id as deck_owner from edit_suggestions s join decks d on d.id = s.deck_id
+      `select s.*, ${sqlIsManager('$2', '$3')} as is_manager
+         from edit_suggestions s join decks d on d.id = s.deck_id
         where s.id = $1 for update of s`,
-      [id],
+      [id, ctx.userId, ctx.isSystemAdmin],
     )
     const s = rows[0]
-    if (!s || s.deck_owner !== userId) throw notFoundSuggestion()
+    if (!s || !s.is_manager) throw notFoundSuggestion()
     await markStale(client, s.deck_id)
     const { rows: fresh } = await client.query('select status from edit_suggestions where id = $1', [id])
     if (fresh[0].status === 'stale') {
@@ -158,7 +165,7 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
   async function accept(ctx, id, { note, force }) {
     const { userId } = ctx
     await withTransaction(pool, async (client) => {
-      const s = await loadForReview(client, userId, id)
+      const s = await loadForReview(client, ctx, id)
       let appliedWordId = null
       if (s.kind === 'add') {
         await assertWithinQuota(client, { table: 'words', userId, max: quotas.words, what: 'từ' })
@@ -219,7 +226,7 @@ export function createSuggestionsService({ pool, quotas, requireVerifiedEmail = 
   async function reject(ctx, id, { note }) {
     const { userId } = ctx
     await withTransaction(pool, async (client) => {
-      await loadForReview(client, userId, id)
+      await loadForReview(client, ctx, id)
       await client.query(
         `update edit_suggestions set status = 'rejected', review_note = $2, reviewed_by = $3, reviewed_at = now()
           where id = $1`,

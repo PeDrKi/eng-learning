@@ -13,7 +13,9 @@ import { COLUMN_OF_FIELD } from './collocations.schemas.js'
 // của từ vựng (access/permissions.js): mục trong chủ đề nhóm thì mọi thành viên xem/ôn được, mỗi
 // người một tiến trình học riêng (phrase_progress theo user_id).
 
-const IS_COLLOCATION = "p.kind <> 'phrase'"
+// Loại đã bỏ khỏi app: dòng cũ không xoá (không đụng dữ liệu) nhưng ẩn khỏi mọi đường đọc/sửa/ôn.
+const HIDDEN_KINDS = "'verb_pattern'"
+const IS_COLLOCATION = `p.kind <> 'phrase' and p.kind not in (${HIDDEN_KINDS})`
 
 // Hình dạng trả ra ngoài: `phrase` đổi tên thành `pattern`, kèm tiến trình học của NGƯỜI GỌI ($1).
 const SELECT_COLUMNS = `p.id, p.user_id, p.deck_id, p.kind, p.headword, p.phrase as pattern, p.answer,
@@ -87,7 +89,7 @@ export function createCollocationsService({ pool, quotas }) {
     )
     await assertWithinQuota(pool, {
       table: 'phrases',
-      filter: "kind <> 'phrase'",
+      filter: `kind <> 'phrase' and kind not in (${HIDDEN_KINDS})`,
       userId,
       adding: items.length,
       max: quotas.collocations,

@@ -50,7 +50,7 @@ export function createWordsService({ pool, quotas }) {
     const visible = `(w.user_id = $1
           or (d.group_id is not null and ($2 or exists (
                 select 1 from group_members gm where gm.group_id = d.group_id and gm.user_id = $1)))
-          or (d.group_id is null and d.hidden_at is null and exists (
+          or (d.id is not null and d.hidden_at is null and exists (
                 select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1)))`
     if (limit === undefined) {
       const { rows } = await pool.query(

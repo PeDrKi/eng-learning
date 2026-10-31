@@ -393,7 +393,7 @@ due_at, last_reviewed_at }`. Body vẫn nhận `ease_factor` để tương thíc
 
 ## Collocation `/collocations`
 
-Giới từ cố định (`rely on`) và mẫu động từ (`prevent sb from V-ing`). Lưu cùng bảng với câu giao tiếp
+Phrasal verbs (`give up`), giới từ đi kèm động từ / tính từ / danh từ (`rely on`, `good at`, `reason for`) và verb + noun (`make a decision`). Lưu cùng bảng với câu giao tiếp
 nhưng **chia sẻ theo luật của từ vựng**: xem được mục của mình và mục trong chủ đề của nhóm mình tham gia;
 thành viên thêm được vào chủ đề nhóm; chỉ trưởng nhóm (hoặc super admin) sửa/xoá mục trong chủ đề nhóm.
 Mỗi người có tiến trình học riêng.
@@ -407,7 +407,7 @@ Mỗi người có tiến trình học riêng.
 | PATCH  | `/collocations/:id/progress` | `{ stability?, difficulty?, interval_days?, repetitions?, due_at?, last_reviewed_at? }`                       | 200 tiến trình      |
 | DELETE | `/collocations/:id`          | —                                                                                                             | 204                 |
 
-**Ràng buộc.** `kind` là `dependent_prep` hoặc `verb_pattern`; `headword` (từ gốc, VD `rely`) 1–100 ký tự;
+**Ràng buộc.** `kind` là `phrasal_verb`, `prepositional_verb`, `phrasal_prepositional_verb`, `adjective_prep`, `noun_prep`, hoặc `verb_noun` (migration 028 chia lại loại cũ `dependent_prep`; loại "mẫu động từ" `verb_pattern` đã bỏ — không nhận mục mới, dòng cũ còn trong DB bị ẩn khỏi mọi API; `pattern_group` chỉ còn để tương thích, app luôn gửi rỗng); `headword` (từ gốc, VD `rely`) 1–100 ký tự;
 `pattern` (dạng đầy đủ, VD `rely on sb/sth`) 1–300; `answer` (phần cần nhớ, VD `on` hoặc `from V-ing`) 1–100;
 `meaning` 1–1000; `pattern_group` tối đa 100; `usage_context`, `example` tối đa 2000; `mistakes` (dạng sai hay
 gặp) tối đa 10 mục, mỗi mục tối đa 100 ký tự, tự bỏ ô trống và mục trùng, **không được chứa `answer`** (400
@@ -420,7 +420,10 @@ tiến trình nếu người gọi chưa có. Ghi lượt ôn: `POST /review-log
 
 ## Cộng đồng `/community`
 
-Chia sẻ **chủ đề cá nhân** (chỉ từ vựng) cho mọi người dùng đã đăng nhập. Danh tính công khai gồm 2 trường:
+Chia sẻ chủ đề (chỉ từ vựng) cho mọi người dùng đã đăng nhập: **chủ đề cá nhân** do chủ sở hữu, **chủ đề nhóm**
+do trưởng nhóm (mọi từ trong chủ đề, kể cả từ thành viên thêm, đều công khai). "Người quản lý" một chủ đề — người
+duyệt đề xuất, xoá nhận xét, nhận thông báo, thấy `mine: true` — là chủ sở hữu (cá nhân) hoặc mọi trưởng nhóm của
+nhóm đó và super admin (nhóm). Danh tính công khai gồm 2 trường:
 `*_name` (tên hiển thị, `null` nếu chưa đặt) và `*_tag` (4 ký tự hex cố định lấy từ id) — giao diện tự ghép
 "Người học #XXXX" / "Learner #XXXX" theo ngôn ngữ khi chưa có tên. Không bao giờ trả email.
 
@@ -454,9 +457,10 @@ Chia sẻ **chủ đề cá nhân** (chỉ từ vựng) cho mọi người dùng
 | POST   | `/admin/community/users/:id/block`     | —                                        | 204                          |
 | POST   | `/admin/community/users/:id/unblock`   | —                                        | 204                          |
 
-`publicDeck`: `{ id, name, color, description, is_public, published_at, owner_name, owner_tag, mine, followed, word_count,
-follower_count }`. `GET /community/decks` trả tối đa 100 chủ đề đang công khai, nhiều người lưu nhất trước; `q`
-tìm trong tên, mô tả và tên người chia sẻ. `GET …/:id` kèm `words: [{ id, word, meaning, meaning_en, example, ipa,
+`publicDeck`: `{ id, name, color, description, is_public, published_at, hidden, owner_name, owner_tag, group_name,
+mine, followed, word_count, follower_count }` (`group_name` khác null khi là chủ đề nhóm). `GET /community/decks`
+trả tối đa 100 chủ đề đang công khai, nhiều người lưu nhất trước; `q` tìm trong tên, mô tả, tên người chia sẻ và
+tên nhóm. Thành viên nhóm luôn xem được chủ đề của nhóm mình. `GET …/:id` kèm `words: [{ id, word, meaning, meaning_en, example, ipa,
 audio_url, pos, created_at, comment_count }]` và `comment_count` của chủ đề — không kèm tiến trình học; xem được khi chủ đề đang công khai, là của mình, hoặc
 mình đã lưu.
 
@@ -466,8 +470,8 @@ mình đã lưu.
 `QUOTA_FOLLOWS` (mặc định 200) chủ đề. **Sao chép** (`copy`): tạo chủ đề cá nhân mới với bản sao các từ, độc
 lập với bản gốc (sau này chủ sở hữu sửa thì bản sao không đổi).
 
-**Công khai / tắt công khai**: chỉ chủ sở hữu, chỉ chủ đề cá nhân (chủ đề nhóm → 400
-`group_deck_not_publishable`). `description` tối đa 500 ký tự. Tắt công khai thì không ai lưu thêm được nhưng
+**Công khai / tắt công khai**: chủ đề cá nhân — chỉ chủ sở hữu (người khác → 404); chủ đề nhóm — trưởng nhóm
+hoặc super admin (thành viên thường → 403, người ngoài → 404). `description` tối đa 500 ký tự. Tắt công khai thì không ai lưu thêm được nhưng
 người đã lưu vẫn học tiếp (và vẫn sao chép được); `revoke_followers: true` thì xoá luôn người đã lưu.
 Chủ sở hữu thấy `follower_count` trên chủ đề của mình trong `GET /decks`.
 
@@ -490,11 +494,12 @@ lúc đề xuất, `current` = nội dung hiện tại (null nếu từ không c
 `status`: `pending`, `accepted`, `rejected`, `stale` (từ đã bị xoá/chuyển khỏi chủ đề). `GET …/suggestions`:
 chủ chủ đề thấy mọi đề xuất, người khác chỉ thấy của mình; `status` mặc định `pending` (`all` = tất cả).
 
-**Duyệt** (chỉ chủ chủ đề; khác → 404): `accept` áp dụng — `edit` ghi các trường đề xuất vào từ, `add` tạo từ
+**Duyệt** (chỉ người quản lý chủ đề; khác → 404): `accept` áp dụng — `edit` ghi các trường đề xuất vào từ, `add` tạo từ
 mới (của chủ chủ đề, trong chủ đề đó), `delete` xoá từ. Từ đã khác `base` → 409 `suggestion_conflict`, gửi lại với
 `force: true` để vẫn áp dụng. Đã xử lý → 409 `suggestion_closed`; từ không còn → 409 `suggestion_stale`. `reject`
-kèm `note` tuỳ chọn. Người đề xuất rút lại được đề xuất đang chờ (`DELETE`). Chủ sở hữu thấy
-`pending_suggestions` trên chủ đề cá nhân của mình trong `GET /decks`.
+kèm `note` tuỳ chọn. Người đề xuất rút lại được đề xuất đang chờ (`DELETE`). Người quản lý thấy
+`pending_suggestions` trên chủ đề mình quản lý trong `GET /decks`. Chủ đề đã lưu là chủ đề nhóm thì `GET /decks` của
+người lưu kèm `group_name`.
 
 **Thông báo.** Ghi khi có nhận xét / đề xuất mới ở chủ đề của mình (`comment`, `suggestion`) và khi đề xuất của
 mình được duyệt (`suggestion_result`, `payload.status`). `GET` trả `{ unread, items }` (50 mới nhất; mỗi mục `{ id,
@@ -516,12 +521,12 @@ xong tự đóng các báo cáo đang mở về nội dung đó. **Chặn ngư�
 
 ## Bài đọc `/readings`
 
-| Method | Đường dẫn       | Body                                   | Thành công      |
-| ------ | --------------- | -------------------------------------- | --------------- |
-| GET    | `/readings`     | —                                      | 200 `[reading]` |
-| POST   | `/readings`     | `{ title?, content?, notes? }`         | 201 `reading`   |
-| PATCH  | `/readings/:id` | các field như POST, đều không bắt buộc | 200 `reading`   |
-| DELETE | `/readings/:id` | —                                      | 204             |
+| Method | Đường dẫn       | Body                                                 | Thành công      |
+| ------ | --------------- | ---------------------------------------------------- | --------------- |
+| GET    | `/readings`     | —                                                    | 200 `[reading]` |
+| POST   | `/readings`     | `{ kind?, title?, content?, notes?, translations? }` | 201 `reading`   |
+| PATCH  | `/readings/:id` | như POST trừ `kind`, đều không bắt buộc              | 200 `reading`   |
+| DELETE | `/readings/:id` | —                                                    | 204             |
 
 Trang "Đọc & ghi chú": một đoạn văn / bài văn / hội thoại kèm ghi chú người học trích ra. Sổ tay **cá nhân**
 như câu giao tiếp. `title` tối đa 200 ký tự; `content` tối đa 50.000; `notes` tối đa 300 mục, mỗi mục
@@ -530,7 +535,12 @@ như câu giao tiếp. `title` tối đa 200 ký tự; `content` tối đa 50.00
 `{ kind: 'word' | 'phrase', id }` khi ghi chú đã được thêm vào Sổ từ / Câu giao tiếp, hoặc `null`. `PATCH` với
 `notes` thay **cả danh sách**.
 
-`reading`: `{ id, user_id, title, content, notes, created_at, updated_at }`, sửa gần nhất trước.
+`kind` (migration 029, chỉ đặt lúc tạo, mặc định `long`): `short` — câu / đoạn ngắn, `content` tối đa 1000 ký tự
+(cả khi PATCH); `long` — bài đọc dài. `translations`: **bản dịch người học tự viết** (không có dịch máy), mảng
+chuỗi theo thứ tự đoạn văn (đoạn = khối cách nhau bởi dòng trống; bài ngắn chỉ dùng phần tử đầu), tối đa 500
+phần tử × 10.000 ký tự; `PATCH` với `translations` thay cả mảng.
+
+`reading`: `{ id, user_id, kind, title, content, notes, translations, created_at, updated_at }`, sửa gần nhất trước.
 
 ## Nhóm học tập `/groups`
 

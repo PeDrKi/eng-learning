@@ -13,7 +13,36 @@ describe('/readings', () => {
   it('tạo bài đọc: giá trị mặc định, bỏ qua user_id client gửi', async () => {
     const res = await w.bob.post('/readings', { content: 'Hello there.', user_id: w.alice.id })
     expect(res.status).toBe(201)
-    expect(res.body).toMatchObject({ user_id: w.bob.id, title: '', content: 'Hello there.', notes: [] })
+    expect(res.body).toMatchObject({
+      user_id: w.bob.id,
+      kind: 'long',
+      title: '',
+      content: 'Hello there.',
+      notes: [],
+      translations: [],
+    })
+  })
+
+  it('câu ngắn + bản dịch tự viết; PATCH translations thay cả mảng, không đổi được loại bài', async () => {
+    const res = await w.bob.post('/readings', { kind: 'short', content: 'It never rains but it pours.' })
+    expect(res.status).toBe(201)
+    expect(res.body).toMatchObject({ kind: 'short', translations: [] })
+    const upd = await w.bob.patch(`/readings/${res.body.id}`, { translations: ['Hoạ vô đơn chí.'], kind: 'long' })
+    expect(upd.status).toBe(200)
+    expect(upd.body).toMatchObject({ kind: 'short', translations: ['Hoạ vô đơn chí.'] })
+  })
+
+  it('câu ngắn tối đa 1000 ký tự (cả lúc tạo lẫn lúc sửa); bài dài thì không', async () => {
+    const long = 'a'.repeat(1001)
+    expect((await w.bob.post('/readings', { kind: 'short', content: long })).status).toBe(400)
+    const { id } = (await w.bob.post('/readings', { kind: 'short', content: 'Hi.' })).body
+    const bad = await w.bob.patch(`/readings/${id}`, { content: long })
+    expect(bad.status).toBe(400)
+    expect(bad.body.error.message).toContain('Bài đọc dài')
+    expect((await w.bob.patch(`/readings/${id}`, { content: 'a'.repeat(1000) })).status).toBe(200)
+    const essay = (await w.bob.post('/readings', { kind: 'long', content: long })).body
+    expect((await w.bob.patch(`/readings/${essay.id}`, { content: long + 'b' })).status).toBe(200)
+    expect((await w.alice.patch(`/readings/${id}`, { content: long })).status).toBe(404)
   })
 
   it('lưu ghi chú: làm sạch, điền mặc định; PATCH notes thay cả danh sách', async () => {
@@ -68,6 +97,8 @@ describe('/readings', () => {
     ['văn bản quá dài', { content: 'a'.repeat(50_001) }],
     ['quá nhiều ghi chú', { notes: Array.from({ length: 301 }, (_, i) => note({ id: `n${i}` })) }],
     ['PATCH rỗng', {}],
+    ['bản dịch không phải chuỗi', { translations: [1] }],
+    ['bản dịch một đoạn quá dài', { translations: ['a'.repeat(10_001)] }],
   ])('từ chối %s → 400', async (_label, body) => {
     const { id } = (await w.bob.post('/readings', {})).body
     expect((await w.bob.patch(`/readings/${id}`, body)).status).toBe(400)

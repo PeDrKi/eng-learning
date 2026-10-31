@@ -35,8 +35,10 @@ const isAdmin = (groupId, ctx) => ctx.isSystemAdmin || ctx.roleByGroupId.get(gro
 
 // ---- Chủ đề ----
 
+// Chủ đề nhóm cũng có thể được trưởng nhóm chia sẻ ra cộng đồng (migration 027): người ngoài nhóm
+// đã "lưu vào thư viện" thì xem/học được, như chủ đề cá nhân.
 export function canViewDeck(deck, ctx) {
-  return deck.group_id ? isMember(deck.group_id, ctx) : isOwner(deck, ctx) || isFollowed(deck, ctx)
+  return (deck.group_id ? isMember(deck.group_id, ctx) : isOwner(deck, ctx)) || isFollowed(deck, ctx)
 }
 
 // Đổi tên/màu, xoá chủ đề.
@@ -60,7 +62,7 @@ export function canAddWordToDeck(deck, ctx) {
 export function canViewWord(word, deck, ctx) {
   if (isOwner(word, ctx)) return true
   if (!deck) return false
-  return deck.group_id ? isMember(deck.group_id, ctx) : isFollowed(deck, ctx)
+  return (Boolean(deck.group_id) && isMember(deck.group_id, ctx)) || isFollowed(deck, ctx)
 }
 
 // Sửa nội dung, gắn/gỡ nhãn, xoá từ.

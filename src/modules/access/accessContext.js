@@ -43,7 +43,7 @@ export const SQL_CAN_VIEW_DECK = `(
 // tương đương canViewDeck() khi có ctx.followedDeckIds. (SQL_CAN_VIEW_DECK còn dùng cho bảng
 // chapters, nơi không có khái niệm theo dõi.)
 export const SQL_DECK_IN_LIBRARY = `(${SQL_CAN_VIEW_DECK}
-  or (d.group_id is null and d.hidden_at is null and exists (
+  or (d.hidden_at is null and exists (
     select 1 from deck_follows f where f.deck_id = d.id and f.user_id = $1
   ))
 )`

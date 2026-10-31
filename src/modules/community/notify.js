@@ -1,3 +1,4 @@
+import { withTransaction } from '../../db/pool.js'
 import { deliverToUser } from '../push/deliver.js'
 
 // Thông báo cộng đồng: luôn ghi 1 dòng `notifications` (số chưa đọc hiện ở mục Khám phá), và gửi
@@ -18,12 +19,19 @@ const PUSH_TEXT = {
 // send: hàm gửi push (push/deliver.js createSender) hoặc null khi máy chủ chưa cấu hình VAPID.
 export function createNotifier({ pool, send, log = console.error }) {
   async function maybePush(id, userId, type, deckId, payload) {
-    const { rows } = await pool.query(
-      `select 1 from notifications where user_id = $1 and pushed_at > now() - make_interval(mins => $2) limit 1`,
-      [userId, PUSH_GAP_MINUTES],
-    )
-    if (rows[0]) return
-    await pool.query('update notifications set pushed_at = now() where id = $1', [id])
+    // Khoá dòng users của người nhận trong lúc "kiểm tra rồi đánh dấu": 2 thông báo tới cùng lúc
+    // (VD 2 người nhận xét cùng giây) không thể cùng thấy "chưa đẩy" rồi cùng đẩy.
+    const shouldPush = await withTransaction(pool, async (client) => {
+      await client.query('select 1 from users where id = $1 for update', [userId])
+      const { rows } = await client.query(
+        `select 1 from notifications where user_id = $1 and pushed_at > now() - make_interval(mins => $2) limit 1`,
+        [userId, PUSH_GAP_MINUTES],
+      )
+      if (rows[0]) return false
+      await client.query('update notifications set pushed_at = now() where id = $1', [id])
+      return true
+    })
+    if (!shouldPush) return
     const text = PUSH_TEXT[type](payload)
     await deliverToUser(pool, send, userId, JSON.stringify({ ...text, url: `/explore?deck=${deckId}` }))
   }

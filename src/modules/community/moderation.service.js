@@ -71,8 +71,8 @@ export function createModerationService({ pool }) {
   async function setDeckHidden(ctx, deckId, hidden) {
     const { rowCount } = await pool.query(
       hidden
-        ? 'update decks set hidden_at = now(), hidden_by = $2 where id = $1 and group_id is null'
-        : 'update decks set hidden_at = null, hidden_by = null where id = $1 and group_id is null',
+        ? 'update decks set hidden_at = now(), hidden_by = $2 where id = $1'
+        : 'update decks set hidden_at = null, hidden_by = null where id = $1',
       hidden ? [deckId, ctx.userId] : [deckId],
     )
     if (!rowCount) throw notFound('Không tìm thấy chủ đề.')

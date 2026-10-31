@@ -2,7 +2,16 @@ import { z } from 'zod'
 
 // Collocation lưu trong bảng `phrases` (migration 022). API gọi dạng đầy đủ là `pattern` cho rõ
 // nghĩa; service đổi sang cột `phrase` khi đọc/ghi.
-export const COLLOCATION_KINDS = ['dependent_prep', 'verb_pattern']
+export const COLLOCATION_KINDS = [
+  'phrasal_verb', // Verb + Particle: give up
+  'prepositional_verb', // Verb + Preposition: depend on
+  'phrasal_prepositional_verb', // Verb + Particle + Preposition: put up with
+  'adjective_prep', // Adjective + Preposition: interested in
+  'noun_prep', // Noun + Preposition: reason for
+  'verb_noun', // Verb + Noun: make a decision
+]
+// "Mẫu động từ" (verb_pattern) đã bỏ: không nhận mục mới; dòng cũ vẫn hợp lệ với ràng buộc DB
+// (migration 028) nhưng bị ẩn — xem HIDDEN_KINDS ở collocations.service.js.
 
 const required = (max, label) =>
   z
@@ -27,7 +36,7 @@ const mistakes = z
   })
 
 const fields = {
-  kind: z.enum(COLLOCATION_KINDS, { error: 'Loại phải là dependent_prep hoặc verb_pattern.' }),
+  kind: z.enum(COLLOCATION_KINDS, { error: `Loại phải là một trong: ${COLLOCATION_KINDS.join(', ')}.` }),
   headword: required(100, 'từ gốc'),
   pattern: required(300, 'cấu trúc'),
   answer: required(100, 'phần cần nhớ'),

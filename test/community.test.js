@@ -41,14 +41,9 @@ describe('công khai chủ đề', () => {
     expect((await w.carol.get('/community/decks?q=%25')).body).toEqual([]) // % là chữ thường, không phải ký tự đại diện
   })
 
-  it('chỉ chủ sở hữu bật được; chủ đề nhóm không công khai được', async () => {
+  // Chủ đề nhóm (do trưởng nhóm chia sẻ): xem test/groupSharing.test.js.
+  it('chủ đề cá nhân: chỉ chủ sở hữu bật được (người khác → 404)', async () => {
     expect((await w.alice.put(`/community/decks/${w.decks.bob.id}/publish`, {})).status).toBe(404)
-    const group = await w.alice.put(`/community/decks/${w.decks.group.id}/publish`, {})
-    expect(group.status).toBe(400)
-    expect(group.body.error.code).toBe('group_deck_not_publishable')
-    await expect(
-      pool.query('update decks set is_public = true where id = $1', [w.decks.group.id]),
-    ).rejects.toMatchObject({ code: '23514' })
   })
 
   it('xem chi tiết: chỉ nội dung từ, không tiến trình học; chủ đề chưa công khai → 404', async () => {

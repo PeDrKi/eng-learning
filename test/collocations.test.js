@@ -8,7 +8,7 @@ beforeEach(async () => {
 })
 
 const RELY = {
-  kind: 'dependent_prep',
+  kind: 'prepositional_verb',
   headword: 'rely',
   pattern: 'rely on sb/sth',
   answer: 'on',
@@ -17,13 +17,12 @@ const RELY = {
   example: 'You can rely on me.',
 }
 const PREVENT = {
-  kind: 'verb_pattern',
-  headword: 'prevent',
-  pattern: 'prevent sb from V-ing',
-  answer: 'from V-ing',
-  pattern_group: 'V + sb + from + V-ing',
-  mistakes: ['to V'],
-  meaning: 'ngăn ai làm gì',
+  kind: 'verb_noun',
+  headword: 'a decision',
+  pattern: 'make a decision',
+  answer: 'make',
+  mistakes: ['do'],
+  meaning: 'đưa ra quyết định',
 }
 const add = (user, body) => user.post('/collocations', { ...RELY, ...body })
 const ids = (res) => res.body.map((c) => c.id).toSorted()
@@ -34,7 +33,7 @@ describe('POST /collocations', () => {
     expect(res.status).toBe(201)
     expect(res.body).toMatchObject({
       user_id: w.bob.id,
-      kind: 'dependent_prep',
+      kind: 'prepositional_verb',
       headword: 'rely',
       pattern: 'rely on sb/sth',
       answer: 'on',
@@ -48,7 +47,7 @@ describe('POST /collocations', () => {
   })
 
   it('thiếu trường bắt buộc / loại lạ / đáp án nằm trong dạng sai → 400', async () => {
-    expect((await w.bob.post('/collocations', { kind: 'dependent_prep' })).status).toBe(400)
+    expect((await w.bob.post('/collocations', { kind: 'prepositional_verb' })).status).toBe(400)
     expect((await add(w.bob, { kind: 'phrase' })).status).toBe(400)
     const res = await add(w.bob, { mistakes: ['ON'] })
     expect(res.status).toBe(400)
@@ -58,7 +57,7 @@ describe('POST /collocations', () => {
   it('thêm hàng loạt: đúng thứ tự, một mục vào chủ đề không có quyền → từ chối cả lô', async () => {
     const ok = await w.bob.post('/collocations/bulk', { collocations: [RELY, PREVENT] })
     expect(ok.status).toBe(201)
-    expect(ok.body.map((c) => c.headword)).toEqual(['rely', 'prevent'])
+    expect(ok.body.map((c) => c.headword)).toEqual(['rely', 'a decision'])
     const bad = await w.bob.post('/collocations/bulk', {
       collocations: [RELY, { ...PREVENT, deck_id: w.decks.carol.id }],
     })

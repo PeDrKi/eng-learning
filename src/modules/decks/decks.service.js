@@ -1,7 +1,8 @@
 import { assertWithinQuota } from '../../lib/quotas.js'
 import { badRequest, forbidden, notFound } from '../../lib/httpError.js'
-import { SQL_DECK_IN_LIBRARY } from '../access/accessContext.js'
+import { SQL_CAN_VIEW_DECK, SQL_DECK_IN_LIBRARY } from '../access/accessContext.js'
 import { sqlPublicIdentity } from '../../lib/publicName.js'
+import { sqlIsManager } from '../community/deckAccess.js'
 import { assertChapterFitsDeck } from '../chapters/chapters.service.js'
 import { canCreateDeck, canManageDeck, canViewDeck } from '../access/permissions.js'
 
@@ -27,16 +28,18 @@ export function createDecksService({ pool, quotas }) {
     const { userId } = ctx
     const { rows } = await pool.query(
       `select d.*,
-              (d.group_id is null and d.user_id <> $1) as followed,
-              case when d.group_id is null and d.user_id <> $1 then null else d.chapter_id end as chapter_id,
+              (not ${SQL_CAN_VIEW_DECK}) as followed,
+              case when ${SQL_CAN_VIEW_DECK} then d.chapter_id end as chapter_id,
+              case when not ${SQL_CAN_VIEW_DECK} then g.name end as group_name,
               ${sqlPublicIdentity('owner')},
-              case when d.is_public and d.user_id = $1
+              case when d.is_public and ${sqlIsManager('$1', '$2')}
                    then (select count(*)::int from deck_follows f where f.deck_id = d.id) end as follower_count,
-              case when d.group_id is null and d.user_id = $1
+              case when ${sqlIsManager('$1', '$2')}
                    then (select count(*)::int from edit_suggestions s
                           where s.deck_id = d.id and s.status = 'pending') end as pending_suggestions
          from decks d
          join users u on u.id = d.user_id
+         left join groups g on g.id = d.group_id
         where ${SQL_DECK_IN_LIBRARY}
         order by d.created_at asc, d.id`,
       [userId, ctx.isSystemAdmin],

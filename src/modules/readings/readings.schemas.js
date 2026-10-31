@@ -4,6 +4,12 @@ import { z } from 'zod'
 // vào một dòng database.
 export const MAX_CONTENT = 50_000
 export const MAX_NOTES = 300
+// Bài ngắn: 1 hoặc vài câu. Bản dịch: mỗi đoạn một chuỗi.
+export const MAX_SHORT_CONTENT = 1000
+export const MAX_TRANSLATIONS = 500
+export const MAX_TRANSLATION = 10_000
+export const READING_KINDS = ['short', 'long']
+export const SHORT_TOO_LONG = `Câu / đoạn ngắn tối đa ${MAX_SHORT_CONTENT.toLocaleString('vi-VN')} ký tự — dài hơn thì dùng "Bài đọc dài".`
 
 const note = z.object({
   // id do FE tạo (crypto.randomUUID) để sửa/xoá đúng ghi chú khi lưu tự động cả danh sách.
@@ -27,13 +33,26 @@ const fields = {
     .array(note)
     .max(MAX_NOTES, `Mỗi bài tối đa ${MAX_NOTES} ghi chú.`)
     .refine((list) => new Set(list.map((n) => n.id)).size === list.length, 'Trùng id ghi chú.'),
+  translations: z
+    .array(
+      z.string().max(MAX_TRANSLATION, `Bản dịch mỗi đoạn tối đa ${MAX_TRANSLATION.toLocaleString('vi-VN')} ký tự.`),
+    )
+    .max(MAX_TRANSLATIONS, `Tối đa ${MAX_TRANSLATIONS} đoạn bản dịch.`),
 }
 
-export const createReadingSchema = z.object({
-  title: fields.title.default(''),
-  content: fields.content.default(''),
-  notes: fields.notes.default([]),
-})
+// Loại bài chỉ chọn lúc tạo (tab "Câu / đoạn ngắn" hay "Bài đọc dài"), không đổi về sau.
+export const createReadingSchema = z
+  .object({
+    kind: z.enum(READING_KINDS, { error: 'Loại bài phải là short hoặc long.' }).default('long'),
+    title: fields.title.default(''),
+    content: fields.content.default(''),
+    notes: fields.notes.default([]),
+    translations: fields.translations.default([]),
+  })
+  .refine((v) => v.kind !== 'short' || v.content.length <= MAX_SHORT_CONTENT, {
+    message: SHORT_TOO_LONG,
+    path: ['content'],
+  })
 
 export const updateReadingSchema = z
   .object(Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.optional()])))
