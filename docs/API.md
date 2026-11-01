@@ -313,11 +313,13 @@ học từ thời SM-2; khi đó lần chấm kế tiếp ước lượng từ `
 
 ## Nhật ký ôn `/review-log`
 
-| Method | Đường dẫn           | Body / query                                                           | Thành công             |
-| ------ | ------------------- | ---------------------------------------------------------------------- | ---------------------- |
-| GET    | `/review-log`       | query `since?`                                                         | 200 `[entry]`          |
-| GET    | `/review-log/daily` | query `since?`, `tz?`                                                  | 200 `[{ day, count }]` |
-| POST   | `/review-log`       | `{ word_id \| phrase_id, quality, direction?, source?, reviewed_at? }` | 201 `entry`            |
+| Method | Đường dẫn             | Body / query                                                                                                   | Thành công                         |
+| ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| GET    | `/review-log`         | query `since?`                                                                                                 | 200 `[entry]`                      |
+| GET    | `/review-log/daily`   | query `since?`, `tz?`                                                                                          | 200 `[{ day, count }]`             |
+| POST   | `/review-log`         | `{ word_id \| phrase_id, quality, direction?, source?, reviewed_at?, answer_ms?, wrong_answer?, session_id? }` | 201 `entry`                        |
+| GET    | `/review-log/summary` | —                                                                                                              | 200 `{ study_reviews, threshold }` |
+| GET    | `/review-log/export`  | query `format?` (`json` mặc định \| `csv`)                                                                     | 200 tệp tải về                     |
 
 `entry`: `{ id, word_id, phrase_id, quality, direction, source, reviewed_at }`.
 
@@ -328,10 +330,18 @@ học từ thời SM-2; khi đó lần chấm kế tiếp ước lượng từ `
   ngày; mọi lượt đều tính vào mục tiêu ngày và chuỗi ngày học.
 - `reviewed_at`: mặc định giờ server. Chỉ dùng khi đồng bộ lượt ôn lúc mất mạng; giá trị được giữ nếu nằm trong
   7 ngày gần nhất và không ở tương lai, ngoài khoảng đó thì dùng giờ server.
+- Dữ liệu cho lịch ôn thông minh (migration 030), đều không bắt buộc: `answer_ms` (số nguyên ≥ 0, thời gian từ
+  lúc thẻ/câu hỏi hiện ra tới lúc trả lời; quá 1 giờ thì bỏ qua), `wrong_answer` (đáp án sai đã chọn/gõ ở Quiz /
+  Chính tả, cắt còn 200 ký tự), `session_id` (uuid của một lần mở app). Không được ghi nếu người học đã tắt
+  `personalization_enabled`; lượt ôn vẫn được ghi như thường. Ba trường này không có trong `entry` trả về.
 
 `GET /review-log` trả nhật ký của mình từ `since` (mặc định 90 ngày trước), mới nhất trước.
 `GET /review-log/daily` trả số lượt ôn mỗi ngày từ `since` (mặc định 90 ngày), gộp theo ngày ở múi giờ `tz`
 (tên IANA như `Asia/Ho_Chi_Minh`, mặc định `UTC`). Dùng cho chuỗi ngày học và biểu đồ.
+`GET /review-log/summary`: số lượt chấm ở tab Học (`source = 'study'`) của mình từ trước tới nay, và ngưỡng (1000)
+cần có để tinh chỉnh lịch ôn riêng. Chỉ dùng để hiện tiến độ — lịch ôn riêng CHƯA được bật.
+`GET /review-log/export`: tải toàn bộ nhật ký ôn của chính mình (tối đa 200.000 dòng, cũ trước), kèm chữ của từ /
+câu. JSON: `{ exported_at, reviews: [...] }`; CSV có BOM UTF-8 cho Excel, ô bắt đầu bằng `= + - @` được thêm `'`.
 
 ```json
 [{ "day": "2026-10-12", "count": 1 }]
@@ -346,15 +356,17 @@ học từ thời SM-2; khi đó lần chấm kế tiếp ước lượng từ `
 
 Chưa từng lưu thì `GET` trả giá trị mặc định.
 
-| Field               | Kiểu      | Khoảng  | Mặc định           | Ý nghĩa                               |
-| ------------------- | --------- | ------- | ------------------ | ------------------------------------- |
-| `new_cards_per_day` | số nguyên | 0–200   | 5                  | Từ mới mỗi ngày (0 = tạm dừng từ mới) |
-| `session_size`      | số nguyên | 3–50    | 10                 | Số thẻ mỗi phiên học                  |
-| `daily_goal`        | số nguyên | 1–500   | 20                 | Mục tiêu lượt ôn mỗi ngày             |
-| `reviews_per_day`   | số nguyên | 10–1000 | 100                | Thẻ ôn lại tối đa mỗi ngày            |
-| `reminder_enabled`  | boolean   |         | `false`            | Bật nhắc học hằng ngày                |
-| `reminder_hour`     | số nguyên | 0–23    | 20                 | Giờ nhắc, theo múi giờ bên dưới       |
-| `reminder_tz`       | chuỗi     | IANA    | `Asia/Ho_Chi_Minh` | Múi giờ của người học                 |
+| Field                     | Kiểu      | Khoảng  | Mặc định           | Ý nghĩa                                                     |
+| ------------------------- | --------- | ------- | ------------------ | ----------------------------------------------------------- |
+| `new_cards_per_day`       | số nguyên | 0–200   | 5                  | Từ mới mỗi ngày (0 = tạm dừng từ mới)                       |
+| `session_size`            | số nguyên | 3–50    | 10                 | Số thẻ mỗi phiên học                                        |
+| `daily_goal`              | số nguyên | 1–500   | 20                 | Mục tiêu lượt ôn mỗi ngày                                   |
+| `reviews_per_day`         | số nguyên | 10–1000 | 100                | Thẻ ôn lại tối đa mỗi ngày                                  |
+| `reminder_enabled`        | boolean   |         | `false`            | Bật nhắc học hằng ngày                                      |
+| `reminder_hour`           | số nguyên | 0–23    | 20                 | Giờ nhắc, theo múi giờ bên dưới                             |
+| `reminder_tz`             | chuỗi     | IANA    | `Asia/Ho_Chi_Minh` | Múi giờ của người học                                       |
+| `personalization_enabled` | boolean   |         | `true`             | Cho phép dùng lịch sử ôn (đã ẩn danh) để cải thiện lịch ôn  |
+| `ml_notice_seen_at`       | ISO 8601  |         | `null`             | Lúc bấm "Đã hiểu" ở thông báo giới thiệu lịch ôn thông minh |
 
 BE chỉ lưu các con số; việc chia phiên và áp giới hạn do FE làm (`lib/studyQueue.js`).
 
@@ -595,7 +607,9 @@ Chỉ **super admin** gọi được; người khác nhận 403 `forbidden`.
 `overview` chỉ có số gộp toàn hệ thống, được nhớ 60 giây:
 `{ generated_at, time_zone, totals: { users, admins, disabled_users, groups, decks, words, phrases },
 new_users: { last_7_days, last_30_days }, active_users: { today, last_7_days, last_30_days },
-reviews: { today, last_7_days }, daily: [...] }`.
+reviews: { today, last_7_days }, daily: [...], fsrs_data: { study_reviews, learners, users_400, users_1000,
+opted_out } }`. `fsrs_data` chỉ tính lượt chấm ở tab Học của người đang bật `personalization_enabled`;
+`opted_out` = số người đã tắt.
 
 `user` ở đây: `{ id, email, role, is_admin, is_super_admin, created_at, disabled_at, word_count, last_active_at }`.
 `q` tìm theo email (chứa chuỗi). `role` là `user` hoặc `admin` (super admin chỉ cấp bằng SQL). `disabled: true`

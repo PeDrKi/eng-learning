@@ -56,6 +56,23 @@ const OVERVIEW_TOTALS_SQL = `
     (select count(*)::int from review_log, b
       where reviewed_at >= b.today_start - interval '6 days') as reviews_7d`
 
+// Dữ liệu cho lịch ôn thông minh: bao nhiêu người (chỉ tính người CHO PHÉP dùng dữ liệu) đã có đủ
+// lượt chấm ở tab Học để tinh chỉnh lịch ôn riêng. Chỉ đếm gộp — không lộ ai là ai.
+const OVERVIEW_FSRS_SQL = `
+  with per_user as (
+    select r.user_id, count(*)::int as n
+      from review_log r
+      left join user_settings s on s.user_id = r.user_id
+     where r.source = 'study' and coalesce(s.personalization_enabled, true)
+     group by r.user_id
+  )
+  select coalesce(sum(n), 0)::int as study_reviews,
+         count(*)::int as learners,
+         count(*) filter (where n >= 400)::int as users_400,
+         count(*) filter (where n >= 1000)::int as users_1000,
+         (select count(*)::int from user_settings where not personalization_enabled) as opted_out
+    from per_user`
+
 // Mỗi ngày 1 dòng (kể cả ngày không có gì → 0), ngày tính theo múi giờ báo cáo.
 const OVERVIEW_DAILY_SQL = `
   with b as (
@@ -92,9 +109,10 @@ export function createAdminService({ pool, log = console.log, timeZone = 'Asia/H
   async function getOverview({ days = 30 } = {}) {
     const hit = overviewCache.get(days)
     if (hit && hit.expiresAt > Date.now()) return hit.value
-    const [totals, daily] = await Promise.all([
+    const [totals, daily, fsrs] = await Promise.all([
       pool.query(OVERVIEW_TOTALS_SQL, [timeZone]),
       pool.query(OVERVIEW_DAILY_SQL, [timeZone, days]),
+      pool.query(OVERVIEW_FSRS_SQL),
     ])
     const t = totals.rows[0]
     const value = {
@@ -113,6 +131,7 @@ export function createAdminService({ pool, log = console.log, timeZone = 'Asia/H
       active_users: { today: t.active_today, last_7_days: t.active_7d, last_30_days: t.active_30d },
       reviews: { today: t.reviews_today, last_7_days: t.reviews_7d },
       daily: daily.rows,
+      fsrs_data: fsrs.rows[0],
     }
     if (overviewCacheMs > 0) overviewCache.set(days, { value, expiresAt: Date.now() + overviewCacheMs })
     return value

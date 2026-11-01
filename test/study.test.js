@@ -185,6 +185,9 @@ describe('/settings', () => {
     reminder_enabled: false,
     reminder_hour: 20,
     reminder_tz: 'Asia/Ho_Chi_Minh',
+    // Lịch ôn thông minh (migration 030) — mặc định BẬT, chưa xem thông báo giới thiệu.
+    personalization_enabled: true,
+    ml_notice_seen_at: null,
   }
 
   it('chưa lưu bao giờ → trả giá trị mặc định', async () => {

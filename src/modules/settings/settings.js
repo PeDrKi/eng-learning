@@ -16,6 +16,10 @@ const DEFAULTS = {
   reminder_enabled: false,
   reminder_hour: 20,
   reminder_tz: 'Asia/Ho_Chi_Minh',
+  // Lịch ôn thông minh (migration 030): cho phép dùng lịch sử ôn đã ẩn danh để cải thiện lịch ôn;
+  // `ml_notice_seen_at` = lúc bấm "Đã hiểu" ở thông báo giới thiệu (null = chưa xem).
+  personalization_enabled: true,
+  ml_notice_seen_at: null,
 }
 const FIELDS = Object.keys(DEFAULTS)
 // Giá trị mặc định viết thẳng vào câu SQL (không phải tham số) nên phải tự bọc nháy cho chuỗi.
@@ -47,10 +51,17 @@ const updateSettingsSchema = z
     reminder_enabled: z.boolean().optional(),
     reminder_hour: intBetween(0, 23, 'giờ nhắc học').optional(),
     reminder_tz: z.string().max(64, 'Múi giờ quá dài.').refine(isValidTimeZone, 'Múi giờ không hợp lệ.').optional(),
+    personalization_enabled: z.boolean().optional(),
+    ml_notice_seen_at: z.iso
+      .datetime({ offset: true, error: 'ml_notice_seen_at phải theo định dạng ISO 8601.' })
+      .optional(),
   })
   .refine((v) => FIELDS.some((k) => v[k] !== undefined), 'Không có gì để cập nhật.')
 
 const COLUMNS = FIELDS.join(', ')
+// Kiểu cho tham số có thể trống: `coalesce($n, null)` thì PostgreSQL không đoán được kiểu của $n.
+const CAST = { ml_notice_seen_at: '::timestamptz' }
+const param = (k, i) => `$${i + 2}${CAST[k] ?? ''}`
 
 export function createSettingsRouter({ pool }) {
   const router = Router()
@@ -66,9 +77,9 @@ export function createSettingsRouter({ pool }) {
       // Chưa có dòng → tạo với giá trị gửi lên (thiếu thì lấy mặc định); có rồi → chỉ đổi field gửi lên.
       const { rows } = await pool.query(
         `insert into user_settings (user_id, ${COLUMNS}, updated_at)
-         values ($1, ${FIELDS.map((k, i) => `coalesce($${i + 2}, ${sqlDefault(DEFAULTS[k])})`).join(', ')}, now())
+         values ($1, ${FIELDS.map((k, i) => `coalesce(${param(k, i)}, ${sqlDefault(DEFAULTS[k])})`).join(', ')}, now())
          on conflict (user_id) do update set
-           ${FIELDS.map((k, i) => `${k} = coalesce($${i + 2}, user_settings.${k})`).join(', ')},
+           ${FIELDS.map((k, i) => `${k} = coalesce(${param(k, i)}, user_settings.${k})`).join(', ')},
            updated_at = now()
          returning ${COLUMNS}`,
         [req.user.id, ...values],
