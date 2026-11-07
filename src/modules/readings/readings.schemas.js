@@ -38,6 +38,10 @@ const fields = {
       z.string().max(MAX_TRANSLATION, `Bản dịch mỗi đoạn tối đa ${MAX_TRANSLATION.toLocaleString('vi-VN')} ký tự.`),
     )
     .max(MAX_TRANSLATIONS, `Tối đa ${MAX_TRANSLATIONS} đoạn bản dịch.`),
+  // Bộ bài đọc (migration 031): null = "Ghi chú" (bài lẻ). `position` = thứ tự trang trong bộ; bỏ trống
+  // khi thêm / chuyển bài vào bộ thì tự xếp cuối bộ.
+  collection_id: z.uuid('collection_id không hợp lệ.').nullable(),
+  position: z.number().int().min(0, 'position không hợp lệ.').max(1_000_000, 'position không hợp lệ.'),
 }
 
 // Loại bài chỉ chọn lúc tạo (tab "Câu / đoạn ngắn" hay "Bài đọc dài"), không đổi về sau.
@@ -48,6 +52,8 @@ export const createReadingSchema = z
     content: fields.content.default(''),
     notes: fields.notes.default([]),
     translations: fields.translations.default([]),
+    collection_id: fields.collection_id.default(null),
+    position: fields.position.optional(),
   })
   .refine((v) => v.kind !== 'short' || v.content.length <= MAX_SHORT_CONTENT, {
     message: SHORT_TOO_LONG,

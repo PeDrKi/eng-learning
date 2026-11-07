@@ -533,12 +533,12 @@ xong tự đóng các báo cáo đang mở về nội dung đó. **Chặn ngư�
 
 ## Bài đọc `/readings`
 
-| Method | Đường dẫn       | Body                                                 | Thành công      |
-| ------ | --------------- | ---------------------------------------------------- | --------------- |
-| GET    | `/readings`     | —                                                    | 200 `[reading]` |
-| POST   | `/readings`     | `{ kind?, title?, content?, notes?, translations? }` | 201 `reading`   |
-| PATCH  | `/readings/:id` | như POST trừ `kind`, đều không bắt buộc              | 200 `reading`   |
-| DELETE | `/readings/:id` | —                                                    | 204             |
+| Method | Đường dẫn       | Body                                                                            | Thành công      |
+| ------ | --------------- | ------------------------------------------------------------------------------- | --------------- |
+| GET    | `/readings`     | —                                                                               | 200 `[reading]` |
+| POST   | `/readings`     | `{ kind?, title?, content?, notes?, translations?, collection_id?, position? }` | 201 `reading`   |
+| PATCH  | `/readings/:id` | như POST trừ `kind`, đều không bắt buộc                                         | 200 `reading`   |
+| DELETE | `/readings/:id` | —                                                                               | 204             |
 
 Trang "Đọc & ghi chú": một đoạn văn / bài văn / hội thoại kèm ghi chú người học trích ra. Sổ tay **cá nhân**
 như câu giao tiếp. `title` tối đa 200 ký tự; `content` tối đa 50.000; `notes` tối đa 300 mục, mỗi mục
@@ -552,7 +552,37 @@ như câu giao tiếp. `title` tối đa 200 ký tự; `content` tối đa 50.00
 chuỗi theo thứ tự đoạn văn (đoạn = khối cách nhau bởi dòng trống; bài ngắn chỉ dùng phần tử đầu), tối đa 500
 phần tử × 10.000 ký tự; `PATCH` với `translations` thay cả mảng.
 
-`reading`: `{ id, user_id, kind, title, content, notes, translations, created_at, updated_at }`, sửa gần nhất trước.
+`collection_id` (migration 031): bộ bài đọc chứa bài, phải là bộ của mình; `null` = "Ghi chú" (bài lẻ, mặc
+định). `position`: thứ tự trang trong bộ (số nguyên ≥ 0, nhỏ trước). Thêm bài vào bộ, hoặc `PATCH` đổi
+`collection_id`, mà không gửi `position` thì bài được xếp cuối bộ; chuyển về "Ghi chú" thì `position` = 0.
+Bộ không tồn tại / của người khác → 400 `collection_not_found`.
+
+`reading`: `{ id, user_id, kind, title, content, notes, translations, collection_id, position, created_at,
+updated_at }`, sửa gần nhất trước.
+
+### Bộ bài đọc `/reading-collections`
+
+| Method | Đường dẫn                  | Body / query                                 | Thành công         |
+| ------ | -------------------------- | -------------------------------------------- | ------------------ |
+| GET    | `/reading-collections`     | —                                            | 200 `[collection]` |
+| POST   | `/reading-collections`     | `{ name, description?, deck_id? }`           | 201 `collection`   |
+| PATCH  | `/reading-collections/:id` | `{ name?, description?, deck_id? }`          | 200 `collection`   |
+| DELETE | `/reading-collections/:id` | query `delete_readings?` (`true` \| `false`) | 204                |
+
+Gom các bài đọc (trang sách, mẩu tin…) thành một bộ. Sổ tay **cá nhân** như bài đọc (tối đa 200 bộ / tài khoản,
+`QUOTA_READING_COLLECTIONS`). `name` 1–100 ký tự, `description` tối đa 500.
+
+- Mỗi bộ gắn với **một chủ đề con** (`deck_id`). `POST` không gửi `deck_id` → tạo **ngay** chủ đề con cá nhân
+  cùng tên (tính vào hạn mức chủ đề). Gửi `deck_id` → gắn chủ đề có sẵn, phải là chủ đề mình thêm từ được (của
+  mình, hoặc của nhóm mình là thành viên), nếu không → 400 `deck_not_found`. FE lưu từ / câu thông dụng từ bài
+  trong bộ vào chủ đề này.
+- `PATCH` đổi `name` → chủ đề đi kèm đổi tên theo nếu nó **vẫn mang tên cũ** và mình sửa được chủ đề đó.
+  `deck_id: null` bỏ liên kết.
+- `DELETE`: chủ đề và từ **giữ nguyên**; bài đọc trong bộ về "Ghi chú" — `delete_readings=true` thì xoá luôn
+  các bài đó.
+
+`collection`: `{ id, user_id, name, description, deck_id, deck_name, reading_count, created_at, updated_at }`, cũ
+trước. `POST` có tự tạo chủ đề thì kèm thêm `deck` (chủ đề vừa tạo).
 
 ## Nhóm học tập `/groups`
 

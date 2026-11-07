@@ -27,6 +27,8 @@ import { createCollocationsService } from './modules/collocations/collocations.s
 import { createPhrasesRouter } from './modules/phrases/phrases.routes.js'
 import { createPhrasesService } from './modules/phrases/phrases.service.js'
 import { createReadingsRouter } from './modules/readings/readings.routes.js'
+import { createReadingCollectionsRouter } from './modules/readings/readingCollections.routes.js'
+import { createReadingCollectionsService } from './modules/readings/readingCollections.service.js'
 import { createReadingsService } from './modules/readings/readings.service.js'
 import { createProgressRouter } from './modules/progress/progress.routes.js'
 import { createProgressService } from './modules/progress/progress.service.js'
@@ -155,6 +157,13 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
     '/readings',
     auth,
     createReadingsRouter({ readingsService: createReadingsService({ pool, quotas: config.quotas }) }),
+  )
+  app.use(
+    '/reading-collections',
+    auth,
+    createReadingCollectionsRouter({
+      readingCollectionsService: createReadingCollectionsService({ pool, quotas: config.quotas }),
+    }),
   )
 
   // Quản trị tài khoản — chỉ super admin.

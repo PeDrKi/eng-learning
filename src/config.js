@@ -87,6 +87,7 @@ const schema = z.object({
   QUOTA_COLLOCATIONS: z.coerce.number().int().positive().default(5_000),
   QUOTA_FOLLOWS: z.coerce.number().int().positive().default(200), // số chủ đề cộng đồng 1 người lưu
   QUOTA_READINGS: z.coerce.number().int().positive().default(500),
+  QUOTA_READING_COLLECTIONS: z.coerce.number().int().positive().default(200),
   QUOTA_GROUPS: z.coerce.number().int().positive().default(50), // số nhóm 1 người tham gia
 
   // Thông báo đẩy "nhắc học" (Web Push). Tạo cặp khoá VAPID một lần bằng:
@@ -183,6 +184,7 @@ export function loadConfig(env = process.env) {
       collocations: e.QUOTA_COLLOCATIONS,
       follows: e.QUOTA_FOLLOWS,
       readings: e.QUOTA_READINGS,
+      readingCollections: e.QUOTA_READING_COLLECTIONS,
       groups: e.QUOTA_GROUPS,
     },
     mail: {
