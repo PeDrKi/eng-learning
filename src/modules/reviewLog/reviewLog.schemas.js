@@ -21,8 +21,9 @@ export const createReviewLogSchema = z
     // Điểm chấm ở tab Học: 0 = Quên, 1 = Khó, 2 = Tốt, 3 = Dễ (xem lib/srs.js ở FE).
     quality: z.number({ error: 'Thiếu điểm chấm.' }).int().min(0).max(3, 'Điểm chấm chỉ từ 0 đến 3.'),
     direction: z.enum(['recognition', 'production']).default('recognition'),
-    // Lượt ôn đến từ đâu (migration 009). Quiz/Chính tả: đúng = 2, sai = 0.
-    source: z.enum(['study', 'quiz', 'spelling']).default('study'),
+    // Lượt ôn đến từ đâu (migration 009; 'match' = trò Ghép thẻ, migration 032). Quiz/Chính tả/Ghép thẻ:
+    // đúng = 2, sai = 0.
+    source: z.enum(['study', 'quiz', 'spelling', 'match']).default('study'),
     // Chỉ FE gửi khi ĐỒNG BỘ kết quả ôn lúc mất mạng (thời điểm ôn thật). Xem reviewLog.service.js
     // về khoảng thời gian được chấp nhận.
     reviewed_at: z.iso.datetime({ offset: true, error: 'reviewed_at phải theo định dạng ISO 8601.' }).optional(),

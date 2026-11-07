@@ -326,7 +326,7 @@ học từ thời SM-2; khi đó lần chấm kế tiếp ước lượng từ `
 - `quality`: 0 Quên, 1 Khó, 2 Tốt, 3 Dễ.
 - Cần **đúng một** trong `word_id` hoặc `phrase_id`.
 - `direction`: `recognition` (Anh → Việt, mặc định) hoặc `production` (Việt → Anh).
-- `source`: `study` (mặc định), `quiz` hoặc `spelling`. FE chỉ tính lượt `study` của từ vào giới hạn thẻ mỗi
+- `source`: `study` (mặc định), `quiz`, `spelling` hoặc `match` (trò Ghép thẻ, migration 032). FE chỉ tính lượt `study` của từ vào giới hạn thẻ mỗi
   ngày; mọi lượt đều tính vào mục tiêu ngày và chuỗi ngày học.
 - `reviewed_at`: mặc định giờ server. Chỉ dùng khi đồng bộ lượt ôn lúc mất mạng; giá trị được giữ nếu nằm trong
   7 ngày gần nhất và không ở tương lai, ngoài khoảng đó thì dùng giờ server.

@@ -134,16 +134,18 @@ describe('/review-log', () => {
     expect(await studyCount(w.bob)).toBe(3)
   })
 
-  it('ghi nguồn của lượt ôn (tab Học / Quiz / Chính tả); mặc định là tab Học', async () => {
+  it('ghi nguồn của lượt ôn (tab Học / Quiz / Chính tả / Ghép thẻ); mặc định là tab Học', async () => {
     const id = w.words.bobPersonal.id
     expect((await log(w.bob, { word_id: id, quality: 2 })).body.source).toBe('study')
     expect((await log(w.bob, { word_id: id, quality: 0, source: 'quiz' })).body.source).toBe('quiz')
     expect((await log(w.bob, { word_id: id, quality: 2, source: 'spelling', direction: 'production' })).status).toBe(
       201,
     )
+    // Ghép thẻ (migration 032).
+    expect((await log(w.bob, { word_id: id, quality: 2, source: 'match' })).body.source).toBe('match')
     expect((await log(w.bob, { word_id: id, quality: 2, source: 'tenses' })).status).toBe(400)
     const sources = (await w.bob.get('/review-log')).body.map((r) => r.source).toSorted()
-    expect(sources).toEqual(['quiz', 'spelling', 'study'])
+    expect(sources).toEqual(['match', 'quiz', 'spelling', 'study'])
   })
 
   it('kiểm tra điểm chấm, chiều học và quyền xem từ', async () => {
