@@ -11,6 +11,14 @@ const PUSH_TEXT = {
   comment: (p) => ({ title: 'Nhận xét mới', body: `Có nhận xét mới ở chủ đề "${p.deck_name}".` }),
   suggestion: (p) => ({ title: 'Đề xuất chỉnh sửa mới', body: `Có đề xuất mới chờ bạn duyệt ở "${p.deck_name}".` }),
   reading_comment: (p) => ({ title: 'Nhận xét mới', body: `Có nhận xét mới ở bài đọc "${p.title}".` }),
+  reading_suggestion: (p) => ({
+    title: 'Đề xuất sửa mới',
+    body: `Có đề xuất mới chờ bạn duyệt ở bài đọc "${p.title}".`,
+  }),
+  reading_suggestion_result: (p) => ({
+    title: p.status === 'accepted' ? 'Đề xuất được áp dụng' : 'Đề xuất bị từ chối',
+    body: `Đề xuất của bạn ở bài đọc "${p.title}" đã được xem xét.`,
+  }),
   suggestion_result: (p) => ({
     title: p.status === 'accepted' ? 'Đề xuất được áp dụng' : 'Đề xuất bị từ chối',
     body: `Đề xuất của bạn ở "${p.deck_name}" đã được xem xét.`,

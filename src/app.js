@@ -18,6 +18,7 @@ import { createGroupsService } from './modules/groups/groups.service.js'
 import { createCommunityRouter } from './modules/community/community.routes.js'
 import { createCommunityService } from './modules/community/community.service.js'
 import { createSuggestionsService } from './modules/community/suggestions.service.js'
+import { createReadingSuggestionsService } from './modules/community/readingSuggestions.service.js'
 import { createModerationService } from './modules/community/moderation.service.js'
 import { createNotifier } from './modules/community/notify.js'
 import { createModerationRouter } from './modules/community/moderation.routes.js'
@@ -141,6 +142,8 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
   const communityService = createCommunityService(communityDeps)
   // Một bộ đếm nhận xét chung cho chủ đề lẫn bài đọc.
   const commentLimiter = createCommentLimiter(config.rateLimitEnabled, rateLimitStore)
+  // Một bộ đếm đề xuất chung cho chủ đề lẫn bài đọc.
+  const suggestionLimiter = createSuggestionLimiter(config.rateLimitEnabled, rateLimitStore)
   app.use(
     '/community',
     auth,
@@ -148,17 +151,20 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
       communityService,
       suggestionsService: createSuggestionsService(communityDeps),
       commentLimiter,
-      suggestionLimiter: createSuggestionLimiter(config.rateLimitEnabled, rateLimitStore),
+      suggestionLimiter,
       reportLimiter: createReportLimiter(config.rateLimitEnabled, rateLimitStore),
     }),
   )
-  // Bài đọc cộng đồng (migration 033).
+  // Bài đọc cộng đồng (migration 033) + đề xuất sửa bài đọc (migration 034).
+  const readingCommunityService = createReadingCommunityService({ ...communityDeps, communityService })
   app.use(
     '/community',
     auth,
     createReadingCommunityRouter({
-      readingCommunityService: createReadingCommunityService({ ...communityDeps, communityService }),
+      readingCommunityService,
+      readingSuggestionsService: createReadingSuggestionsService({ ...communityDeps, readingCommunityService }),
       commentLimiter,
+      suggestionLimiter,
     }),
   )
   app.use(

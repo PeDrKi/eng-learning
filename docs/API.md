@@ -580,6 +580,41 @@ Chia sẻ **cả bộ bài đọc** hoặc **từng bài lẻ** (kể cả bài 
 `item`: `{ type: 'collection' | 'reading', id, title, description, kind, published_at, owner_name, owner_tag, mine,
 followed, follower_count, reading_count, note_count }`.
 
+### Đề xuất sửa bài đọc (migration 034)
+
+Người xem gửi đề xuất cho bài đọc công khai **của người khác** (bài lẻ, hoặc một trang trong bộ công khai); **chỉ chủ
+bài** duyệt. Gửi đề xuất dùng chung giới hạn 30 lần / giờ với đề xuất chủ đề.
+
+| Method | Đường dẫn                                       | Body / query                                                                 | Thành công                       |
+| ------ | ----------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| POST   | `/community/readings/:id/suggestions`           | `{ kind, note_id?, paragraph?, proposed, reason?, collection_id? }`          | 201 `suggestion`                 |
+| GET    | `/community/readings/:id/suggestions`           | query `status?` (`pending` mặc định, `accepted`, `rejected`, `stale`, `all`) | 200 `[suggestion]`               |
+| GET    | `/community/reading-suggestions/mine`           | —                                                                            | 200 `[suggestion]` (50 gần nhất) |
+| GET    | `/community/reading-suggestions/pending-counts` | —                                                                            | 200 `[{ reading_id, count }]`    |
+| POST   | `/community/reading-suggestions/:id/accept`     | `{ note?, force? }`                                                          | 200 `suggestion`                 |
+| POST   | `/community/reading-suggestions/:id/reject`     | `{ note? }`                                                                  | 200 `suggestion`                 |
+| DELETE | `/community/reading-suggestions/:id`            | —                                                                            | 204 (rút lại đề xuất đang chờ)   |
+
+- `kind`:
+  - `add_note` — `proposed: { type, text, meaning?, explanation?, example? }`; áp dụng = thêm ghi chú mới (`saved_to: null`).
+  - `edit_note` — `note_id` + `proposed` chỉ các trường muốn đổi; trường giống bản hiện tại bị bỏ, không còn gì → 400
+    `no_change`; ghi chú không có → 400 `note_not_found`.
+  - `translation` — `paragraph` (từ 0) + `proposed: { text }`. Cần bài chia sẻ nguyên văn **hoặc** bản dịch (không →
+    400 `translation_not_shared`).
+  - `typo` — sửa chính tả NGUYÊN VĂN: `paragraph` + `proposed: { find, replace }`; cần nguyên văn được chia sẻ (400
+    `content_not_shared`), `find` phải có trong đoạn (400 `typo_not_found`).
+  - Đoạn không có → 400 `paragraph_not_found`. Bài của chính mình → 400 `own_reading`.
+- `collection_id`: đang xem qua bộ nào (để thông báo mở đúng trang trong bộ).
+- Chủ bài thấy mọi đề xuất, kèm `current` (nội dung hiện tại) và `conflict`; người khác chỉ thấy đề xuất của mình,
+  không có `current`, và `base` = `null` với `translation` / `typo` (không lộ phần người chia sẻ đã ẩn).
+- **Xung đột**: bài đã đổi so với `base` → 409 `suggestion_conflict`, gửi lại `force: true` để vẫn áp dụng. Ghi chú /
+  đoạn không còn → đề xuất thành `stale` (409 `suggestion_stale`); đã xử lý → 409 `suggestion_closed`.
+- Thông báo: chủ bài nhận `reading_suggestion`, người đề xuất nhận `reading_suggestion_result`
+  (`payload: { title, kind, status, reading_id, collection_id, url }`).
+
+`suggestion`: `{ id, reading_id, collection_id, reading_title, kind, note_id, paragraph, base, proposed, reason, status,
+review_note, created_at, reviewed_at, author_name, author_tag, mine, can_review, current, conflict }`.
+
 ## Bài đọc `/readings`
 
 | Method | Đường dẫn       | Body                                                                            | Thành công      |

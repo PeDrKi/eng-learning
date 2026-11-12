@@ -3,14 +3,22 @@ import { uuidParam } from '../../lib/params.js'
 import { validateBody, validateQuery } from '../../middleware/validate.js'
 import {
   addReadingCommentSchema,
+  createReadingSuggestionSchema,
   listPublicReadingsQuery,
+  listReadingSuggestionsQuery,
   listReadingCommentsQuery,
   publishCollectionSchema,
   publishReadingSchema,
+  reviewReadingSuggestionSchema,
 } from './readingCommunity.schemas.js'
 
 // Bài đọc cộng đồng (migration 033) — gắn dưới /community, sau requireUser.
-export function createReadingCommunityRouter({ readingCommunityService: svc, commentLimiter }) {
+export function createReadingCommunityRouter({
+  readingCommunityService: svc,
+  readingSuggestionsService: sug,
+  commentLimiter,
+  suggestionLimiter,
+}) {
   const router = Router()
 
   // Khám phá → tab "Bài đọc": bộ + bài lẻ đang công khai (saved=true: chỉ những gì mình đã lưu).
@@ -95,6 +103,47 @@ export function createReadingCommunityRouter({ readingCommunityService: svc, com
       res.status(201).json(await svc.addComment(req.access, { readingId: req.params.id }, req.body))
     },
   )
+
+  // ---- Đề xuất sửa (migration 034) ----
+  // Đặt trước '/readings/:id' cho rõ; các đường dẫn tĩnh không trùng mẫu uuid.
+  router.get('/reading-suggestions/mine', async (req, res) => {
+    res.json(await sug.listMine(req.access))
+  })
+  router.get('/reading-suggestions/pending-counts', async (req, res) => {
+    res.json(await sug.pendingCounts(req.access))
+  })
+  router.get('/readings/:id/suggestions', uuidParam(), validateQuery(listReadingSuggestionsQuery), async (req, res) => {
+    res.json(await sug.listForReading(req.access, req.params.id, req.validQuery))
+  })
+  router.post(
+    '/readings/:id/suggestions',
+    uuidParam(),
+    suggestionLimiter,
+    validateBody(createReadingSuggestionSchema),
+    async (req, res) => {
+      res.status(201).json(await sug.create(req.access, req.params.id, req.body))
+    },
+  )
+  router.post(
+    '/reading-suggestions/:id/accept',
+    uuidParam(),
+    validateBody(reviewReadingSuggestionSchema),
+    async (req, res) => {
+      res.json(await sug.accept(req.access, req.params.id, req.body))
+    },
+  )
+  router.post(
+    '/reading-suggestions/:id/reject',
+    uuidParam(),
+    validateBody(reviewReadingSuggestionSchema),
+    async (req, res) => {
+      res.json(await sug.reject(req.access, req.params.id, req.body))
+    },
+  )
+  router.delete('/reading-suggestions/:id', uuidParam(), async (req, res) => {
+    await sug.withdraw(req.access, req.params.id)
+    res.status(204).end()
+  })
 
   router.delete('/reading-comments/:id', uuidParam(), async (req, res) => {
     await svc.deleteComment(req.access, req.params.id)
