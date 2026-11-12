@@ -83,7 +83,9 @@ export const rejectSuggestionSchema = z.object({
 })
 
 export const reportSchema = z.object({
-  target_type: z.enum(['deck', 'comment', 'suggestion'], { error: 'Loại nội dung không hợp lệ.' }),
+  target_type: z.enum(['deck', 'comment', 'suggestion', 'reading_collection', 'reading', 'reading_comment'], {
+    error: 'Loại nội dung không hợp lệ.',
+  }),
   target_id: z.uuid('target_id không hợp lệ.'),
   reason: z.string().trim().max(1000, 'Lý do tối đa 1000 ký tự.').default(''),
 })

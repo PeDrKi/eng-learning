@@ -531,6 +531,55 @@ xong tự đóng các báo cáo đang mở về nội dung đó. **Chặn ngư�
 được (403 `community_blocked`) nhưng vẫn học, lưu, sao chép được; không chặn được super admin (400
 `cannot_block_admin`).
 
+### Bài đọc cộng đồng (migration 033)
+
+Chia sẻ **cả bộ bài đọc** hoặc **từng bài lẻ** (kể cả bài trong "Ghi chú"). Như chủ đề cộng đồng: chỉ người đã
+đăng nhập xem được, chỉ hiện tên công khai của người chia sẻ (`owner_name`, `owner_tag`), không bao giờ email.
+
+| Method | Đường dẫn                                      | Body / query                                                               | Thành công                                  |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------- |
+| GET    | `/community/readings`                          | query `q?`, `saved?` (`true` = chỉ những gì mình đã lưu)                   | 200 `[item]`                                |
+| GET    | `/community/reading-collections/:id`           | —                                                                          | 200 `collection` kèm `readings`             |
+| PUT    | `/community/reading-collections/:id/publish`   | `{ description?, include_content?, include_translations?, publish_deck? }` | 200 `collection` + `deck_published`         |
+| POST   | `/community/reading-collections/:id/unpublish` | —                                                                          | 200                                         |
+| POST   | `/community/reading-collections/:id/follow`    | —                                                                          | 200 `{ followed }`                          |
+| DELETE | `/community/reading-collections/:id/follow`    | —                                                                          | 200 `{ followed }`                          |
+| POST   | `/community/reading-collections/:id/copy`      | —                                                                          | 201 `{ collection, deck, readings_copied }` |
+| GET    | `/community/reading-collections/:id/comments`  | query `reading_id?` (nhận xét cho 1 trang)                                 | 200 `[comment]`                             |
+| POST   | `/community/reading-collections/:id/comments`  | `{ body, reading_id? }`                                                    | 201 `comment`                               |
+| GET    | `/community/readings/:id`                      | —                                                                          | 200 `reading`                               |
+| PUT    | `/community/readings/:id/publish`              | `{ include_content?, include_translations? }`                              | 200 `reading`                               |
+| POST   | `/community/readings/:id/unpublish`            | —                                                                          | 200                                         |
+| POST   | `/community/readings/:id/follow`               | —                                                                          | 200 `{ followed }`                          |
+| DELETE | `/community/readings/:id/follow`               | —                                                                          | 200 `{ followed }`                          |
+| POST   | `/community/readings/:id/copy`                 | —                                                                          | 201 `{ reading }`                           |
+| GET    | `/community/readings/:id/comments`             | —                                                                          | 200 `[comment]`                             |
+| POST   | `/community/readings/:id/comments`             | `{ body }`                                                                 | 201 `comment`                               |
+| DELETE | `/community/reading-comments/:id`              | —                                                                          | 204                                         |
+
+- **Ai xem được:** bộ — của mình, hoặc đang công khai và chưa bị gỡ; bài — của mình, hoặc chưa bị gỡ và (tự
+  công khai, hoặc nằm trong một bộ đang công khai). Không xem được → 404.
+- **Chỉ chủ sở hữu** bật/tắt công khai (người khác → 404). Bộ / bài đã bị super admin gỡ → 409
+  (`collection_hidden` / `reading_hidden`); bài trống → 400 `reading_empty`.
+- `include_content` (mặc định **`false`**): người khác có thấy **nguyên văn** không. Mặc định ẩn — người xem chỉ thấy
+  ghi chú và bản dịch (`content: ''`, `content_shared: false`); nguyên văn ẩn thì không tìm kiếm được ở
+  `GET /community/readings` và không đi theo khi sao chép. Xem trang qua bộ thì theo lựa chọn của bộ.
+- `include_translations` (mặc định `true`): người khác có thấy bản dịch tự viết không. Xem trang qua bộ thì theo
+  lựa chọn của bộ. Người xem không bao giờ thấy `saved_to` của ghi chú.
+- `publish_deck` (mặc định `true`): công khai luôn chủ đề con gắn với bộ theo luật của `PUT /community/decks/:id/publish`;
+  không được thì bộ vẫn công khai, `deck_published: false`.
+- **Tắt công khai** xoá mọi lượt "Lưu vào thư viện"; bản người khác đã sao chép vẫn còn.
+- **Sao chép** bộ → bộ mới của mình (tạo chủ đề con cùng tên, như mọi bộ mới) + các trang theo thứ tự; bài lẻ →
+  vào "Ghi chú". Ghi chú giữ nguyên nhưng `saved_to = null`; bản dịch chỉ khi được phép xem.
+- **Nhận xét** (1–1000 ký tự): cho cả bộ, cho 1 trang trong bộ (`reading_id`), hoặc cho bài lẻ. Chủ bài nhận thông
+  báo `reading_comment`; người viết, chủ bài và super admin xoá được. Người bị chặn khỏi cộng đồng → 403.
+- **Báo cáo:** `POST /community/reports` nhận thêm `target_type` `reading_collection`, `reading`, `reading_comment`.
+- **Kiểm duyệt** (super admin): `POST /admin/community/{reading-collections|readings|reading-comments}/:id/hide`
+  và `/unhide` → 204; gỡ thì tự đóng các báo cáo đang mở về nội dung đó.
+
+`item`: `{ type: 'collection' | 'reading', id, title, description, kind, published_at, owner_name, owner_tag, mine,
+followed, follower_count, reading_count, note_count }`.
+
 ## Bài đọc `/readings`
 
 | Method | Đường dẫn       | Body                                                                            | Thành công      |

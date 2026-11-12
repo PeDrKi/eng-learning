@@ -10,6 +10,7 @@ const PUSH_GAP_MINUTES = 15
 const PUSH_TEXT = {
   comment: (p) => ({ title: 'Nhận xét mới', body: `Có nhận xét mới ở chủ đề "${p.deck_name}".` }),
   suggestion: (p) => ({ title: 'Đề xuất chỉnh sửa mới', body: `Có đề xuất mới chờ bạn duyệt ở "${p.deck_name}".` }),
+  reading_comment: (p) => ({ title: 'Nhận xét mới', body: `Có nhận xét mới ở bài đọc "${p.title}".` }),
   suggestion_result: (p) => ({
     title: p.status === 'accepted' ? 'Đề xuất được áp dụng' : 'Đề xuất bị từ chối',
     body: `Đề xuất của bạn ở "${p.deck_name}" đã được xem xét.`,
@@ -33,7 +34,8 @@ export function createNotifier({ pool, send, log = console.error }) {
     })
     if (!shouldPush) return
     const text = PUSH_TEXT[type](payload)
-    await deliverToUser(pool, send, userId, JSON.stringify({ ...text, url: `/explore?deck=${deckId}` }))
+    const url = payload.url ?? `/explore?deck=${deckId}`
+    await deliverToUser(pool, send, userId, JSON.stringify({ ...text, url }))
   }
 
   // Không bao giờ làm hỏng thao tác chính: lỗi ghi/gửi thông báo chỉ được ghi log.

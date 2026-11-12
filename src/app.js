@@ -21,6 +21,8 @@ import { createSuggestionsService } from './modules/community/suggestions.servic
 import { createModerationService } from './modules/community/moderation.service.js'
 import { createNotifier } from './modules/community/notify.js'
 import { createModerationRouter } from './modules/community/moderation.routes.js'
+import { createReadingCommunityRouter } from './modules/community/readingCommunity.routes.js'
+import { createReadingCommunityService } from './modules/community/readingCommunity.service.js'
 import { createSender } from './modules/push/deliver.js'
 import { createCollocationsRouter } from './modules/collocations/collocations.routes.js'
 import { createCollocationsService } from './modules/collocations/collocations.service.js'
@@ -136,15 +138,27 @@ export function createApp({ config, pool, mailer, rateLimitStore, log = console.
     requireVerifiedEmail: config.auth.communityRequireVerified,
     notify,
   }
+  const communityService = createCommunityService(communityDeps)
+  // Một bộ đếm nhận xét chung cho chủ đề lẫn bài đọc.
+  const commentLimiter = createCommentLimiter(config.rateLimitEnabled, rateLimitStore)
   app.use(
     '/community',
     auth,
     createCommunityRouter({
-      communityService: createCommunityService(communityDeps),
+      communityService,
       suggestionsService: createSuggestionsService(communityDeps),
-      commentLimiter: createCommentLimiter(config.rateLimitEnabled, rateLimitStore),
+      commentLimiter,
       suggestionLimiter: createSuggestionLimiter(config.rateLimitEnabled, rateLimitStore),
       reportLimiter: createReportLimiter(config.rateLimitEnabled, rateLimitStore),
+    }),
+  )
+  // Bài đọc cộng đồng (migration 033).
+  app.use(
+    '/community',
+    auth,
+    createReadingCommunityRouter({
+      readingCommunityService: createReadingCommunityService({ ...communityDeps, communityService }),
+      commentLimiter,
     }),
   )
   app.use(

@@ -5,6 +5,7 @@ import { assertWithinQuota } from '../../lib/quotas.js'
 import { sqlPublicIdentity } from '../../lib/publicName.js'
 import { canManageDeck } from '../access/permissions.js'
 import { managersOf, sqlIsGroupMember, sqlIsManager } from './deckAccess.js'
+import { readingTargetVisible } from './readingCommunity.service.js'
 
 // Cộng đồng — giai đoạn 1: công khai chủ đề cá nhân, trang Khám phá, "Lưu vào thư viện" (theo dõi:
 // học thẳng chủ đề của người khác, thấy ngay chỉnh sửa của họ) và "Sao chép" (bản riêng, độc lập).
@@ -261,6 +262,18 @@ export function createCommunityService({ pool, quotas, requireVerifiedEmail = fa
   async function report(ctx, { target_type, target_id, reason }) {
     const { userId } = ctx
     await assertCommunityAllowed(pool, userId, { requireVerifiedEmail })
+    // Bài đọc cộng đồng (migration 033): kiểm tra theo luật xem của bài đọc.
+    if (target_type.startsWith('reading')) {
+      if (!(await readingTargetVisible(pool, userId, target_type, target_id))) {
+        throw notFound('Không tìm thấy nội dung cần báo cáo.')
+      }
+      await pool.query(
+        `insert into reports (reporter_id, target_type, target_id, reason) values ($1, $2, $3, $4)
+         on conflict (reporter_id, target_type, target_id) where status = 'open' do nothing`,
+        [userId, target_type, target_id, reason],
+      )
+      return { ok: true }
+    }
     let deckId = target_id
     if (target_type === 'comment') {
       const { rows } = await pool.query('select deck_id from comments where id = $1 and deleted_at is null', [

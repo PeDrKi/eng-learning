@@ -37,6 +37,22 @@ export function createModerationRouter({ moderationService }) {
     done(res)
   })
 
+  // Bài đọc cộng đồng (migration 033): gỡ / trả lại bộ bài đọc, bài đọc, nhận xét ở bài đọc.
+  for (const [path, type] of [
+    ['reading-collections', 'reading_collection'],
+    ['readings', 'reading'],
+    ['reading-comments', 'reading_comment'],
+  ]) {
+    router.post(`/${path}/:id/hide`, uuidParam(), async (req, res) => {
+      await moderationService.setReadingContentHidden(req.access, type, req.params.id, true)
+      done(res)
+    })
+    router.post(`/${path}/:id/unhide`, uuidParam(), async (req, res) => {
+      await moderationService.setReadingContentHidden(req.access, type, req.params.id, false)
+      done(res)
+    })
+  }
+
   router.post('/users/:id/block', uuidParam(), async (req, res) => {
     await moderationService.setUserBlocked(req.access, req.params.id, true)
     done(res)

@@ -18,6 +18,17 @@ const TARGET_SUMMARY = `
                        'text', coalesce(s.proposed->>'word', s.base->>'word', '') || ' — ' || s.reason,
                        'deck_id', s.deck_id, 'owner_id', s.user_id, 'hidden', false)
                        from edit_suggestions s join decks d on d.id = s.deck_id where s.id = r.target_id)
+    when 'reading_collection' then (select jsonb_build_object('title', c.name, 'text', c.description,
+                       'collection_id', c.id, 'owner_id', c.user_id, 'hidden', c.hidden_at is not null)
+                       from reading_collections c where c.id = r.target_id)
+    when 'reading' then (select jsonb_build_object('title', coalesce(nullif(x.title, ''), left(x.content, 60)),
+                       'text', left(x.content, 300), 'reading_id', x.id, 'owner_id', x.user_id,
+                       'hidden', x.hidden_at is not null) from readings x where x.id = r.target_id)
+    when 'reading_comment' then (select jsonb_build_object('title', coalesce(c.name, x.title, ''), 'text', rc.body,
+                       'collection_id', rc.collection_id, 'reading_id', rc.reading_id, 'owner_id', rc.user_id,
+                       'hidden', rc.deleted_at is not null)
+                       from reading_comments rc left join reading_collections c on c.id = rc.collection_id
+                       left join readings x on x.id = rc.reading_id where rc.id = r.target_id)
   end`
 
 export function createModerationService({ pool }) {
@@ -79,6 +90,21 @@ export function createModerationService({ pool }) {
     if (hidden) await resolveReportsFor(ctx, 'deck', deckId)
   }
 
+  // Bài đọc cộng đồng (migration 033): gỡ / trả lại bộ, bài, nhận xét.
+  async function setReadingContentHidden(ctx, type, id, hidden) {
+    const table = { reading_collection: 'reading_collections', reading: 'readings' }[type]
+    const sql = table
+      ? hidden
+        ? `update ${table} set hidden_at = now(), hidden_by = $2 where id = $1`
+        : `update ${table} set hidden_at = null, hidden_by = null where id = $1`
+      : hidden
+        ? 'update reading_comments set deleted_at = now(), deleted_by = $2 where id = $1'
+        : 'update reading_comments set deleted_at = null, deleted_by = null where id = $1'
+    const { rowCount } = await pool.query(sql, hidden ? [id, ctx.userId] : [id])
+    if (!rowCount) throw notFound('Không tìm thấy nội dung.')
+    if (hidden) await resolveReportsFor(ctx, type, id)
+  }
+
   async function setCommentHidden(ctx, commentId, hidden) {
     const { rowCount } = await pool.query(
       hidden
@@ -99,5 +125,5 @@ export function createModerationService({ pool }) {
     await pool.query('update users set community_blocked_at = $2 where id = $1', [userId, blocked ? new Date() : null])
   }
 
-  return { listReports, closeReport, setDeckHidden, setCommentHidden, setUserBlocked }
+  return { listReports, closeReport, setDeckHidden, setCommentHidden, setReadingContentHidden, setUserBlocked }
 }
